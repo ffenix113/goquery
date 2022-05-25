@@ -8,10 +8,8 @@ import (
 	"strconv"
 )
 
-type caller struct {
-	File string
-	Line int
-}
+const projectName = "goquery"
+const interfaceName = "Queryable"
 
 type Context struct {
 	fileSet *token.FileSet
@@ -55,22 +53,7 @@ func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
 	case *ast.File:
 		c.PackageName = n.Name.Name
 	case *ast.CallExpr:
-		if idxExpr, ok := n.Fun.(*ast.IndexExpr); ok {
-			c.maybeAddNew(idxExpr)
-
-			return c
-		}
-
 		selector, ok := n.Fun.(*ast.SelectorExpr)
-		if !ok {
-			break
-		}
-
-		if _, ok := selector.X.(*ast.CallExpr); ok {
-			panic("chaining is not implemented yet")
-		}
-
-		ident, ok := selector.X.(*ast.Ident)
 		if !ok {
 			break
 		}
@@ -79,12 +62,15 @@ func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
 			break
 		}
 
-		identType := c.typeInfo.TypeOf(ident)
-		selectorType := c.typeInfo.TypeOf(selector)
-		_, _ = identType, selectorType
+		selectorType := c.typeInfo.TypeOf(selector.X)
+		if selectorType.(*types.Named).Obj().Name() != interfaceName {
+			break
+		}
+
+		identType := c.typeInfo.TypeOf(selector.X)
 
 		identTypeObj := identType.(*types.Named).Obj()
-		if identTypeObj.Pkg().Name() != "entity" || identTypeObj.Name() != "DBSet" {
+		if identTypeObj.Pkg().Name() != projectName || identTypeObj.Name() != interfaceName {
 			break
 		}
 
@@ -100,7 +86,13 @@ func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
 		_ = typeName
 
 		addable := bodyParser.parse(whereFunc.Body)
-		c.Data[typeName][c.fileSet.Position(ident.Pos())] = newQueryData(addable)
+		typeCalls, ok := c.Data[typeName]
+		if !ok {
+			typeCalls = make(map[token.Position]QueryData)
+			c.Data[typeName] = typeCalls
+		}
+
+		typeCalls[c.fileSet.Position(selector.Sel.Pos())] = newQueryData(addable)
 	}
 	return c
 }
@@ -108,33 +100,6 @@ func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
 func getTypeArgName(identType types.Type) string {
 	return identType.(*types.Named).
 		TypeArgs().At(0).(*types.Named).Obj().Name()
-}
-
-func (c *Context) maybeAddNew(idxExpr *ast.IndexExpr) {
-	selector, ok := idxExpr.X.(*ast.SelectorExpr)
-	if !ok {
-		return
-	}
-
-	selectorType := c.typeInfo.TypeOf(selector)
-	_ = selectorType
-
-	selectorIdent, ok := selector.X.(*ast.Ident)
-	if !ok {
-		return
-	}
-
-	// FIXME: make possible to use with renamed package.
-	if selectorIdent.Name != "entity" || selector.Sel.Name != "New" {
-		return
-	}
-
-	typeArgName := idxExpr.Index.(*ast.Ident).Name
-	if _, ok := c.Data[typeArgName]; ok {
-		return
-	}
-
-	c.Data[typeArgName] = map[token.Position]QueryData{}
 }
 
 func (p *whereBodyParser) parse(body *ast.BlockStmt) Addable {

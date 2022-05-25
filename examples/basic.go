@@ -1,19 +1,18 @@
-//go:generate go run /home/eugene/GoProjects/entity/cmd/entity/...
+//go:generate entity
 
 package main
 
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
-	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/sqlitedialect"
 	"github.com/uptrace/bun/driver/sqliteshim"
 
-	"github.com/ffenix113/entity"
+	entity "github.com/ffenix113/goquery"
 )
 
 type Book struct {
@@ -31,24 +30,20 @@ func main() {
 
 	db := bun.NewDB(sqldb, sqlitedialect.New())
 
-	dbBookSet := entity.New[Book](db, BookHelper{})
+	dbBookSet := entity.NewFactory[Book](db)
 
 	setImpl := dbBookSet.New()
 
 	setImpl.Where(func(book Book) bool {
 		return book.Released == 2003
+	}).Where(func(bk Book) bool {
+		return bk.Title == "a"
 	})
 
-	resultBook, err := setImpl.First(context.Background())
-	if err != nil {
+	var resultBook Book
+	if err := setImpl.Query().Model(&resultBook).Scan(context.Background()); err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("%+v", resultBook)
-}
-
-type BookHelper struct{}
-
-func (b BookHelper) ColumnName(name string) string {
-	return strings.ToLower(name)
+	spew.Dump(resultBook)
 }

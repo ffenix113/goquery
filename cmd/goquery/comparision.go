@@ -120,6 +120,7 @@ func exprToAddable(s ast.Expr) Addable {
 	case *ast.SelectorExpr:
 		return NewSimple("?", raw("bun.Ident(helper.ColumnName(\""+s.Sel.Name+"\"))"))
 	case *ast.ParenExpr:
+		// Just unwrap parenthesis.
 		return exprToAddable(s.X)
 	default:
 		panic(fmt.Sprintf("unsupported binary argument type %T", s))

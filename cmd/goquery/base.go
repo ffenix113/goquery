@@ -31,6 +31,7 @@ func WriteBase(c *Context, goFilePath string) {
 
 	processed, err := imports.Process("", outputBuf.Bytes(), nil)
 	if err != nil {
+		outputBuf.WriteTo(os.Stdout)
 		panic(err)
 	}
 

@@ -1,4 +1,4 @@
-package entity
+package goquery
 
 import (
 	"reflect"
@@ -9,13 +9,24 @@ import (
 var globalCallsMap = map[reflect.Type]any{}
 
 type DBSetFactory[T any] interface {
-	New() DBSet[T]
+	// New creates new Queryable.
+	//
+	// This method accepts optional base select query
+	// to specify model for example.
+	New(...*bun.SelectQuery) Queryable[T]
 }
 
-func New[T any](db *bun.DB, helper Helper) DBSetFactory[T] {
-	return &dbSetEntity[T]{
+func NewFactory[T any](db *bun.DB, helper ...Helper) DBSetFactory[T] {
+	var selectedHelper Helper
+	if len(helper) > 0 {
+		selectedHelper = helper[0]
+	} else {
+		selectedHelper = NewBunHelper[T](db)
+	}
+
+	return &queryable[T]{
 		callsMap: getCallMapFromGlobal[T](),
-		helper:   helper,
+		helper:   selectedHelper,
 		db:       db,
 	}
 }
@@ -24,11 +35,17 @@ func New[T any](db *bun.DB, helper Helper) DBSetFactory[T] {
 func SetGlobalEntity[T any](callsMap Calls) {
 	var argType T
 	typeArg := reflect.TypeOf(argType)
-	if _, ok := globalCallsMap[typeArg]; ok {
-		panic("global entity already set for type: " + typeArg.String())
+	if _, ok := globalCallsMap[typeArg]; !ok {
+		globalCallsMap[typeArg] = callsMap
+
+		return
 	}
 
-	globalCallsMap[typeArg] = callsMap
+	callers := getCallMapFromGlobal[T]()
+
+	for caller, queryFunc := range callsMap.Where {
+		callers.Where[caller] = queryFunc
+	}
 }
 
 func getCallMapFromGlobal[T any]() Calls {
