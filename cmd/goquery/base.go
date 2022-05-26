@@ -49,9 +49,11 @@ func WriteBase(c *Context, goFilePath string) {
 }
 
 func createdBaseTplFilePath(goFilePath string) string {
+	const suffix = "_goquery.go"
+
 	if !strings.HasSuffix(goFilePath, ".go") {
 		panic("file path must end with '.go'")
 	}
 
-	return goFilePath[:len(goFilePath)-3] + "_base.go"
+	return goFilePath[:len(goFilePath)-3] + suffix
 }

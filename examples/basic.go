@@ -1,13 +1,13 @@
-//go:generate entity
+//go:generate go run ../cmd/goquery/...
 
-package main
+package examples
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"os"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/sqlitedialect"
 	"github.com/uptrace/bun/driver/sqliteshim"
@@ -21,7 +21,13 @@ type Book struct {
 	Released int
 }
 
-func main() {
+type a struct {
+	b struct {
+		c string
+	}
+}
+
+func basic() {
 	dbSource := os.Getenv("DB_SOURCE")
 	sqldb, err := sql.Open(sqliteshim.ShimName, dbSource)
 	if err != nil {
@@ -34,16 +40,29 @@ func main() {
 
 	setImpl := dbBookSet.New()
 
+	var c a
+
 	setImpl.Where(func(book Book) bool {
-		return book.Released == 2003
-	}).Where(func(bk Book) bool {
-		return bk.Title == "a"
-	})
+		// Direct comparison with a constant works.
+		return book.Released == 2003 || book.Released == 2000
+	}).Where(func(bk Book) bool { // Chaining also works.
+		// Comparison against outside variables works
+		// as long as outside variable is provided as argument
+		// to `Where` method.
+		return bk.Title == c.b.c
+	}, c.b.c).Where(filter)
 
 	var resultBook Book
-	if err := setImpl.Query().Model(&resultBook).Scan(context.Background()); err != nil {
+	if err := setImpl.Query().Model(&resultBook).
+		Scan(context.Background()); err != nil {
 		panic(err)
 	}
 
-	spew.Dump(resultBook)
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "\t")
+	enc.Encode(resultBook)
+}
+
+func filter(b Book) bool {
+	return b.Released > 0
 }

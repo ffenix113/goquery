@@ -32,7 +32,7 @@ func NewFactory[T any](db *bun.DB, helper ...Helper) DBSetFactory[T] {
 }
 
 // DO NOT USE: this is only for generated code!
-func SetGlobalEntity[T any](callsMap Calls) {
+func AddToGlobalEntity[T any](callsMap Calls) {
 	var argType T
 	typeArg := reflect.TypeOf(argType)
 	if _, ok := globalCallsMap[typeArg]; !ok {

@@ -8,19 +8,21 @@ import (
 	"go/types"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-const baseInterfacePrefix = "entity.DBSet["
-
-func isDBSetType(t types.Type) bool {
-	return strings.HasPrefix(t.String(), baseInterfacePrefix)
-}
+const projectName = "goquery"
+const interfaceName = "Queryable"
 
 func main() {
 	file := os.Getenv("GOFILE")
 	if file == "" {
 		file = os.Args[1]
+	}
+
+	var err error
+	file, err = filepath.Abs(file)
+	if err != nil {
+		panic(err)
 	}
 
 	c := Context{

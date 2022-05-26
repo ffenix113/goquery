@@ -8,9 +8,6 @@ import (
 	"strconv"
 )
 
-const projectName = "goquery"
-const interfaceName = "Queryable"
-
 type Context struct {
 	fileSet *token.FileSet
 	astFile ast.Node
@@ -62,11 +59,6 @@ func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
 			break
 		}
 
-		selectorType := c.typeInfo.TypeOf(selector.X)
-		if selectorType.(*types.Named).Obj().Name() != interfaceName {
-			break
-		}
-
 		identType := c.typeInfo.TypeOf(selector.X)
 
 		identTypeObj := identType.(*types.Named).Obj()
@@ -74,12 +66,23 @@ func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
 			break
 		}
 
-		whereFunc := n.Args[0].(*ast.FuncLit)
+		var whereFunc *ast.FuncLit
+		switch argType := n.Args[0].(type) {
+		case *ast.Ident:
+			funcDecl := argType.Obj.Decl.(*ast.FuncDecl)
+			whereFunc = &ast.FuncLit{
+				Type: funcDecl.Type,
+				Body: funcDecl.Body,
+			}
+		case *ast.FuncLit:
+			whereFunc = argType
+		}
 
 		paramName := whereFunc.Type.Params.List[0].Names[0].Name
 		bodyParser := whereBodyParser{
 			c:         c,
 			paramName: paramName,
+			args:      getArgNames(n.Args[1:]...),
 		}
 		// Get type
 		typeName := getTypeArgName(identType)
@@ -102,6 +105,19 @@ func getTypeArgName(identType types.Type) string {
 		TypeArgs().At(0).(*types.Named).Obj().Name()
 }
 
+func getArgNames(exprs ...ast.Expr) map[string]int {
+	if len(exprs) == 0 {
+		return nil
+	}
+
+	names := make(map[string]int, len(exprs))
+	for i, expr := range exprs {
+		names[exprName(expr)] = i
+	}
+
+	return names
+}
+
 func (p *whereBodyParser) parse(body *ast.BlockStmt) Addable {
 	binaryExpr := body.List[0].(*ast.ReturnStmt).Results[0].(*ast.BinaryExpr)
 
@@ -111,8 +127,9 @@ func (p *whereBodyParser) parse(body *ast.BlockStmt) Addable {
 type whereBodyParser struct {
 	c         *Context
 	paramName string
+	args      map[string]int
 }
 
 func (p *whereBodyParser) parseBinaryExpression(expr *ast.BinaryExpr) Addable {
-	return fromBinaryExpr(expr)
+	return p.fromBinaryExpr(expr, p.args)
 }

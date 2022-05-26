@@ -33,7 +33,7 @@ func (e *queryable[T]) Where(_ func(val T) bool, args ...any) Queryable[T] {
 
 	where, ok := e.callsMap.Where[Caller{file, line}]
 	if !ok {
-		panic("no 'Where' function. Definitely a bug! caller: " + file + ":" + strconv.Itoa(line))
+		panic("no 'Where' function. Perhaps `go generate` was not called? caller: " + file + ":" + strconv.Itoa(line))
 	}
 
 	where(e.helper, e.selectQuery, args...)

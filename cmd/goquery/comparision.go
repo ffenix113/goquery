@@ -60,11 +60,14 @@ type comparison struct {
 	Op    string
 	Left  Addable
 	Right Addable
-	Arg   any // we will populate this with real value, not string representation
+
+	p *whereBodyParser
 }
 
-func newComparison(binaryExpr *ast.BinaryExpr) Addable {
-	c := &comparison{}
+func newComparison(parser *whereBodyParser, binaryExpr *ast.BinaryExpr) Addable {
+	c := &comparison{
+		p: parser,
+	}
 
 	c.setLeft(binaryExpr.X)
 	c.setOp(binaryExpr.Op)
@@ -93,37 +96,65 @@ func (c *comparison) setOp(op token.Token) {
 }
 
 func (c *comparison) setLeft(s ast.Expr) {
-	c.Left = exprToAddable(s)
+	c.Left = c.p.exprToAddable(s, c.p.args)
 }
 
 func (c *comparison) setRight(s ast.Expr) {
-	c.Right = exprToAddable(s)
+	c.Right = c.p.exprToAddable(s, c.p.args)
 }
 
-func fromBinaryExpr(expr *ast.BinaryExpr) Addable {
+func (p *whereBodyParser) fromBinaryExpr(expr *ast.BinaryExpr, args map[string]int) Addable {
 	switch expr.Op {
 	case token.LOR:
-		return newComparisonOr(exprToAddable(expr.X), exprToAddable(expr.Y))
+		return newComparisonOr(p.exprToAddable(expr.X, args), p.exprToAddable(expr.Y, args))
 	case token.LAND:
-		return newComparisonAnd(exprToAddable(expr.X), exprToAddable(expr.Y))
+		return newComparisonAnd(p.exprToAddable(expr.X, args), p.exprToAddable(expr.Y, args))
 	}
 
-	return newComparison(expr)
+	return newComparison(p, expr)
 }
 
-func exprToAddable(s ast.Expr) Addable {
+func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable {
 	switch s := s.(type) {
 	case *ast.BasicLit:
 		return NewSimple("?", getArg(s))
 	case *ast.BinaryExpr:
-		return fromBinaryExpr(s)
+		return p.fromBinaryExpr(s, args)
 	case *ast.SelectorExpr:
+		// Supports more cases for arguments
+		gotExprName := exprName(s)
+		if !strings.HasPrefix(gotExprName, p.paramName+".") {
+			argPos, ok := args[gotExprName]
+			if !ok {
+				panic("argument is not provided: " + gotExprName)
+			}
+
+			return NewSimple("?", fromArgs(argPos))
+		}
+
 		return NewSimple("?", raw("bun.Ident(helper.ColumnName(\""+s.Sel.Name+"\"))"))
 	case *ast.ParenExpr:
-		// Just unwrap parenthesis.
-		return exprToAddable(s.X)
+		return Parens{p.exprToAddable(s.X, args)}
+	case *ast.Ident:
+		argPos, ok := args[s.Name]
+		if !ok {
+			panic("argument is not provided: " + s.Name)
+		}
+
+		return NewSimple("?", fromArgs(argPos))
 	default:
 		panic(fmt.Sprintf("unsupported binary argument type %T", s))
+	}
+}
+
+func exprName(expr ast.Expr) string {
+	switch expr := expr.(type) {
+	case *ast.Ident:
+		return expr.Name
+	case *ast.SelectorExpr:
+		return exprName(expr.X) + "." + expr.Sel.Name
+	default:
+		panic(fmt.Sprintf("unsupported expression type %T", expr))
 	}
 }
 
@@ -156,4 +187,8 @@ func (c *comparison) String() string {
 
 func (c *comparison) Args() []any {
 	return append(append([]any(nil), c.Left.Args()...), c.Right.Args()...)
+}
+
+func fromArgs(pos int) raw {
+	return raw(fmt.Sprintf("args[%d]", pos))
 }

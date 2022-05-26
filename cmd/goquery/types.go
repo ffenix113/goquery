@@ -50,3 +50,11 @@ func (e Expression) String() string {
 func (e Expression) Args() []any {
 	return nil
 }
+
+type Parens struct {
+	Addable
+}
+
+func (p Parens) String() string {
+	return "(" + p.Addable.String() + ")"
+}
