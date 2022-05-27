@@ -27,22 +27,26 @@ type a struct {
 	}
 }
 
-func basic() {
+var globDB = func() *bun.DB {
 	dbSource := os.Getenv("DB_SOURCE")
 	sqldb, err := sql.Open(sqliteshim.ShimName, dbSource)
 	if err != nil {
 		panic(err)
 	}
 
-	db := bun.NewDB(sqldb, sqlitedialect.New())
+	return bun.NewDB(sqldb, sqlitedialect.New())
+}()
 
-	dbBookSet := entity.NewFactory[Book](db)
+func newQueryable[T any]() entity.Queryable[T] {
+	return entity.NewFactory[T](globDB).New()
+}
 
-	setImpl := dbBookSet.New()
+func basic() {
+	q := newQueryable[Book]()
 
 	var c a
 
-	setImpl.Where(func(book Book) bool {
+	q.Where(func(book Book) bool {
 		// Direct comparison with a constant works.
 		return book.Released == 2003 || book.Released == 2000
 	}).Where(func(bk Book) bool { // Chaining also works.
@@ -51,18 +55,46 @@ func basic() {
 		// to `Where` method.
 		return bk.Title == c.b.c
 	}, c.b.c).Where(filter)
-
-	var resultBook Book
-	if err := setImpl.Query().Model(&resultBook).
-		Scan(context.Background()); err != nil {
-		panic(err)
-	}
-
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "\t")
-	enc.Encode(resultBook)
 }
 
 func filter(b Book) bool {
 	return b.Released > 0
+}
+
+func pointerAndMultiline() {
+	q := newQueryable[*Book]()
+
+	q.Where(func(book *Book) bool {
+		// Direct comparison with a constant works.
+		return book.Released == 2003 ||
+			book.Released == 2000
+	})
+}
+
+// Just some helpers
+
+func runSingleQuery[T any](q entity.Queryable[T]) (res T) {
+	if err := q.Query().Model(&res).
+		Scan(context.Background()); err != nil {
+		panic(err)
+	}
+
+	return res
+}
+
+func runAllQuery[T any](q entity.Queryable[T]) (res []T) {
+	if err := q.Query().Model(&res).
+		Scan(context.Background()); err != nil {
+		panic(err)
+	}
+
+	return res
+}
+
+func encode(val any) {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(val); err != nil {
+		panic(err)
+	}
 }

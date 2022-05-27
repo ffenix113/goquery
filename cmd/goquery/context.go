@@ -101,8 +101,15 @@ func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
 }
 
 func getTypeArgName(identType types.Type) string {
-	return identType.(*types.Named).
-		TypeArgs().At(0).(*types.Named).Obj().Name()
+	argType := identType.(*types.Named).TypeArgs().At(0)
+
+	ptr, isPtr := argType.(*types.Pointer)
+	for isPtr {
+		argType = ptr.Elem()
+		ptr, isPtr = argType.(*types.Pointer)
+	}
+
+	return argType.(*types.Named).Obj().Name()
 }
 
 func getArgNames(exprs ...ast.Expr) map[string]int {
