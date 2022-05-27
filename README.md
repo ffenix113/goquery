@@ -189,6 +189,7 @@ defined manually in the parser, which means that while separately
 some features may work this does not guarantee that together they will also work.
 
 For some other limitation that can be stated:
-* `Where` calls **must be** on separate lines!
+* `Where` calls **must be** on separate lines!  
+Parser uses file and line number to understand which function should be called.
 * Closures will not work, as they by definition require values outside the current scope.
 * Only `*bun.DB` is supported as query execution mechanism.

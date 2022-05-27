@@ -70,13 +70,14 @@ func newComparison(parser *whereBodyParser, binaryExpr *ast.BinaryExpr) Addable 
 	}
 
 	c.setLeft(binaryExpr.X)
-	c.setOp(binaryExpr.Op)
+	c.setOp(binaryExpr)
 	c.setRight(binaryExpr.Y)
 
 	return c
 }
 
-func (c *comparison) setOp(op token.Token) {
+func (c *comparison) setOp(expr *ast.BinaryExpr) {
+	op := expr.Op
 	switch op {
 	case token.EQL:
 		c.Op = "="
@@ -91,7 +92,7 @@ func (c *comparison) setOp(op token.Token) {
 	case token.GEQ:
 		c.Op = ">="
 	default:
-		panic("unsupported operator: " + op.String())
+		c.p.c.panicWithPos(expr.Pos(), "unsupported operator: "+op.String())
 	}
 }
 
@@ -126,7 +127,7 @@ func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable
 		if !strings.HasPrefix(gotExprName, p.paramName+".") {
 			argPos, ok := args[gotExprName]
 			if !ok {
-				panic("argument is not provided: " + gotExprName)
+				p.c.panicWithPos(s.Pos(), "argument is not provided: "+gotExprName)
 			}
 
 			return NewSimple("?", fromArgs(argPos))
@@ -138,12 +139,14 @@ func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable
 	case *ast.Ident:
 		argPos, ok := args[s.Name]
 		if !ok {
-			panic("argument is not provided: " + s.Name)
+			p.c.panicWithPos(s.Pos(), "argument is not provided: "+s.Name)
 		}
 
 		return NewSimple("?", fromArgs(argPos))
 	default:
-		panic(fmt.Sprintf("unsupported binary argument type %T", s))
+		p.c.panicWithPos(s.Pos(), fmt.Sprintf("unsupported binary argument type %T", s))
+
+		return nil
 	}
 }
 
@@ -154,6 +157,7 @@ func exprName(expr ast.Expr) string {
 	case *ast.SelectorExpr:
 		return exprName(expr.X) + "." + expr.Sel.Name
 	default:
+
 		panic(fmt.Sprintf("unsupported expression type %T", expr))
 	}
 }
@@ -191,4 +195,8 @@ func (c *comparison) Args() []any {
 
 func fromArgs(pos int) raw {
 	return raw(fmt.Sprintf("args[%d]", pos))
+}
+
+func (c *Context) panicWithPos(pos token.Pos, msg string) {
+	panic(fmt.Sprintf("%s: %s", c.fileSet.Position(pos).String(), msg))
 }
