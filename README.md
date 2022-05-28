@@ -51,7 +51,7 @@ err := NewUserQuerySet(getGormDB()).
 pilot, err := models.Pilots(models.PilotWhere.Name.EQ("Tim")).One(ctx, db)
 ```
 
-Above example are closer to .NET implementation, but they are still not 
+Above example are somewhat closer to direct implementation, but they are still not 
 real query generation from function definition.
 
 If only there was a way to transform in .NET
@@ -60,12 +60,10 @@ var products = context.Prducts.Where(p => p.CategoryId == 1 && p.UnitsInStock < 
 ```
 to something like this in Go:
 ```go
-queryable = queryable.Where(func(p Product) bool {
-	return p.CategoryId == 1 && p.UnitsInStock < 10
-})
-// Query value with normal *bun.DB functionality
+q = q.Where(func(p Product) bool { return p.CategoryId == 1 && p.UnitsInStock < 10 })
+// And then query value with normal *bun.DB functionality
 var product Product
-err := queryable.Query().Model(&product).Scan(context.Background())
+err := q.Query().Model(&product).Scan(context.Background())
 ```
 
 ### Getting started
@@ -191,5 +189,7 @@ some features may work this does not guarantee that together they will also work
 For some other limitation that can be stated:
 * `Where` calls **must be** on separate lines!  
 Parser uses file and line number to understand which function should be called.
-* Closures will not work, as they by definition require values outside the current scope.
+* Closures will work only if correct argument is provided to `Where` method.
 * Only `*bun.DB` is supported as query execution mechanism.
+* Passing fields(i.e. from structs and arguments) is not supported, 
+as it will not be possible to provide right caller information.

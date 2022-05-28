@@ -1,6 +1,6 @@
 //go:generate go run ../cmd/goquery/...
 
-package examples
+package main
 
 import (
 	"context"
@@ -16,9 +16,10 @@ import (
 )
 
 type Book struct {
-	Title    string
-	Author   string
-	Released int
+	Title     string
+	Author    string
+	Released  int
+	IsSelling bool
 }
 
 type a struct {
@@ -41,6 +42,14 @@ func newQueryable[T any]() entity.Queryable[T] {
 	return entity.NewFactory[T](globDB).New()
 }
 
+func main() {
+	// basic()
+	// pointerAndMultiline()
+	// passingToAFunction()
+	// closure()
+	// badClosure()
+}
+
 func basic() {
 	q := newQueryable[Book]()
 
@@ -61,6 +70,15 @@ func filter(b Book) bool {
 	return b.Released > 0
 }
 
+// Unary expressions are not supported and will result in parsing panic.
+func unary() {
+	// q := newQueryable[Book]()
+
+	// q.Where(func(book Book) bool {
+	// 	return !book.IsSelling // This will panic on generation
+	// })
+}
+
 func pointerAndMultiline() {
 	q := newQueryable[*Book]()
 
@@ -69,6 +87,59 @@ func pointerAndMultiline() {
 		return book.Released == 2003 ||
 			book.Released == 2000
 	})
+}
+
+func passingToAFunction() {
+	q := newQueryable[*Book]()
+
+	addWhere(q)
+}
+
+func addWhere(q entity.Queryable[*Book]) {
+	q.Where(func(b *Book) bool { return b.Title == "AnotherFunc" })
+}
+
+// Passing filter as a field will not work
+// as it will not be possible to provide
+// necessary caller information from runtime.
+func filterFromArgument() {
+	// q := newQueryable[*Book]()
+	//
+	// func(f func(b *Book) bool) {
+	// 	q.Where(f)
+	// }(func(b *Book) bool {
+	// 	return b.Title == "AnotherFunc"
+	// })
+}
+
+func closure() {
+	q := newQueryable[*Book]()
+
+	a := 10
+
+	f := func(b *Book) bool {
+		return b.Released == a
+	}
+
+	// Only the name of the variable should match
+	q.Where(f, a)
+}
+
+func badClosure() {
+	q := newQueryable[*Book]()
+
+	a := 10
+
+	f := func(b *Book) bool {
+		return b.Released == a
+	}
+
+	{
+		// As only name of the variable should currently match
+		// it is possible to define wrong usages like this:
+		a := "string"
+		q.Where(f, a)
+	}
 }
 
 // Just some helpers

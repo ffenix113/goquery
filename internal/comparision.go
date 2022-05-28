@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"fmt"
@@ -92,7 +92,7 @@ func (c *comparison) setOp(expr *ast.BinaryExpr) {
 	case token.GEQ:
 		c.Op = ">="
 	default:
-		c.p.c.panicWithPos(expr.Pos(), "unsupported operator: "+op.String())
+		c.p.c.panicWithPos(expr, "unsupported operator: "+op.String())
 	}
 }
 
@@ -123,11 +123,11 @@ func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable
 		return p.fromBinaryExpr(s, args)
 	case *ast.SelectorExpr:
 		// Supports more cases for arguments
-		gotExprName := exprName(s)
+		gotExprName := p.c.exprName(s)
 		if !strings.HasPrefix(gotExprName, p.paramName+".") {
 			argPos, ok := args[gotExprName]
 			if !ok {
-				p.c.panicWithPos(s.Pos(), "argument is not provided: "+gotExprName)
+				p.c.panicWithPos(s, "argument is not provided: "+gotExprName)
 			}
 
 			return NewSimple("?", fromArgs(argPos))
@@ -139,26 +139,26 @@ func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable
 	case *ast.Ident:
 		argPos, ok := args[s.Name]
 		if !ok {
-			p.c.panicWithPos(s.Pos(), "argument is not provided: "+s.Name)
+			p.c.panicWithPos(s, "argument is not provided: "+s.Name)
 		}
 
 		return NewSimple("?", fromArgs(argPos))
 	default:
-		p.c.panicWithPos(s.Pos(), fmt.Sprintf("unsupported binary argument type %T", s))
+		p.c.panicWithPos(s, fmt.Sprintf("unsupported binary argument type %T", s))
 
 		return nil
 	}
 }
 
-func exprName(expr ast.Expr) string {
+func (c *Context) exprName(expr ast.Expr) string {
 	switch expr := expr.(type) {
 	case *ast.Ident:
 		return expr.Name
 	case *ast.SelectorExpr:
-		return exprName(expr.X) + "." + expr.Sel.Name
+		return c.exprName(expr.X) + "." + expr.Sel.Name
 	default:
-
-		panic(fmt.Sprintf("unsupported expression type %T", expr))
+		c.panicWithPos(expr, fmt.Sprintf("unsupported expression type %T", expr))
+		return ""
 	}
 }
 
@@ -197,6 +197,6 @@ func fromArgs(pos int) raw {
 	return raw(fmt.Sprintf("args[%d]", pos))
 }
 
-func (c *Context) panicWithPos(pos token.Pos, msg string) {
-	panic(fmt.Sprintf("%s: %s", c.fileSet.Position(pos).String(), msg))
+func (c *Context) panicWithPos(node ast.Node, msg string) {
+	panic(fmt.Sprintf("%s: %s", c.FileSet.Position(node.Pos()).String(), msg))
 }
