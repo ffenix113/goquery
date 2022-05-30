@@ -71,12 +71,12 @@ err := q.Query().Model(&product).Scan(context.Background())
 
 To install the executable that will generate the queries run:
 ```bash
-go install github.com/ffenix113/entity/cmd/entity@main
+go install github.com/ffenix113/goquery/cmd/goquery@main
 ```
 
 After this you can write code like this:
 ```go
-//go:generate entity
+//go:generate goquery
 package main
 
 import (
