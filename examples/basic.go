@@ -48,6 +48,7 @@ func main() {
 	// passingToAFunction()
 	// closure()
 	// badClosure()
+	// compareToTrue()
 }
 
 func basic() {
@@ -140,6 +141,14 @@ func badClosure() {
 		a := "string"
 		q.Where(f, a)
 	}
+}
+
+func compareToTrue() {
+	q := newQueryable[*Book]()
+
+	q.Where(func(book *Book) bool {
+		return book.IsSelling == true
+	})
 }
 
 // Just some helpers

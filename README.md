@@ -137,6 +137,13 @@ queryable.Where(func(user User) bool {
     return (user.Name == "John" && user.ID == 1) || user.ID >= 4
 })
 ```
+* Compare to true/false
+```go
+queryable.Where(func(book *Book) bool {
+    // Same for false
+    return book.IsSelling == true
+})
+```
 * Using simple function as filter.  
 Note: closures will not work properly.
 ```go

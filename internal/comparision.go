@@ -9,10 +9,12 @@ import (
 	"unsafe"
 )
 
+const param = "?"
+
 type comparisonsAnd []Addable
 
 func newComparisonAnd(comparisons ...Addable) comparisonsAnd {
-	return comparisonsAnd(comparisons)
+	return comparisons
 }
 
 func (c comparisonsAnd) String() string {
@@ -118,7 +120,7 @@ func (p *whereBodyParser) fromBinaryExpr(expr *ast.BinaryExpr, args map[string]i
 func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable {
 	switch s := s.(type) {
 	case *ast.BasicLit:
-		return NewSimple("?", getArg(s))
+		return NewSimple(param, getArg(s))
 	case *ast.BinaryExpr:
 		return p.fromBinaryExpr(s, args)
 	case *ast.SelectorExpr:
@@ -130,19 +132,30 @@ func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable
 				p.c.panicWithPos(s, "argument is not provided: "+gotExprName)
 			}
 
-			return NewSimple("?", fromArgs(argPos))
+			return NewSimple(param, fromArgs(argPos))
 		}
 
-		return NewSimple("?", raw("bun.Ident(helper.ColumnName(\""+s.Sel.Name+"\"))"))
+		return NewSimple(param, raw("bun.Ident(helper.ColumnName(\""+s.Sel.Name+"\"))"))
 	case *ast.ParenExpr:
 		return Parens{p.exprToAddable(s.X, args)}
 	case *ast.Ident:
+		switch s.Name {
+		case "true", "false":
+			// True/false values do not have Obj set,
+			// and if it is set - the value is re-defined.
+			if s.Obj != nil {
+				break
+			}
+
+			return NewSimple(param, raw(s.Name))
+		}
+
 		argPos, ok := args[s.Name]
 		if !ok {
 			p.c.panicWithPos(s, "argument is not provided: "+s.Name)
 		}
 
-		return NewSimple("?", fromArgs(argPos))
+		return NewSimple(param, fromArgs(argPos))
 	default:
 		p.c.panicWithPos(s, fmt.Sprintf("unsupported binary argument type %T", s))
 
