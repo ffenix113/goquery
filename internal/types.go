@@ -19,6 +19,18 @@ type Simple struct {
 	Arg       []any
 }
 
+func (r raw) String() string {
+	return string(r)
+}
+
+func (raw) Args() []any {
+	return nil
+}
+
+func NewColumn(name string) *Simple {
+	return NewSimple(param, raw("bun.Ident(helper.ColumnName(\""+name+"\"))"))
+}
+
 func NewSimple(val string, args ...any) *Simple {
 	return &Simple{
 		StringVal: val,
@@ -57,4 +69,12 @@ type Parens struct {
 
 func (p Parens) String() string {
 	return "(" + p.Addable.String() + ")"
+}
+
+type Not struct {
+	Addable
+}
+
+func (n Not) String() string {
+	return "not (" + n.Addable.String() + ")"
 }

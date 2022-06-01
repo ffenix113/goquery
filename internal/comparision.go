@@ -72,15 +72,14 @@ func newComparison(parser *whereBodyParser, binaryExpr *ast.BinaryExpr) Addable 
 	}
 
 	c.setLeft(binaryExpr.X)
-	c.setOp(binaryExpr)
+	c.setOp(binaryExpr.Op)
 	c.setRight(binaryExpr.Y)
 
 	return c
 }
 
-func (c *comparison) setOp(expr *ast.BinaryExpr) {
-	op := expr.Op
-	switch op {
+func (c *comparison) setOp(cmpToken token.Token) {
+	switch cmpToken {
 	case token.EQL:
 		c.Op = "="
 	case token.GTR:
@@ -94,7 +93,7 @@ func (c *comparison) setOp(expr *ast.BinaryExpr) {
 	case token.GEQ:
 		c.Op = ">="
 	default:
-		c.p.c.panicWithPos(expr, "unsupported operator: "+op.String())
+		panic("unsupported operator: " + cmpToken.String())
 	}
 }
 
@@ -118,49 +117,7 @@ func (p *whereBodyParser) fromBinaryExpr(expr *ast.BinaryExpr, args map[string]i
 }
 
 func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable {
-	switch s := s.(type) {
-	case *ast.BasicLit:
-		return NewSimple(param, getArg(s))
-	case *ast.BinaryExpr:
-		return p.fromBinaryExpr(s, args)
-	case *ast.SelectorExpr:
-		// Supports more cases for arguments
-		gotExprName := p.c.exprName(s)
-		if !strings.HasPrefix(gotExprName, p.paramName+".") {
-			argPos, ok := args[gotExprName]
-			if !ok {
-				p.c.panicWithPos(s, "argument is not provided: "+gotExprName)
-			}
-
-			return NewSimple(param, fromArgs(argPos))
-		}
-
-		return NewSimple(param, raw("bun.Ident(helper.ColumnName(\""+s.Sel.Name+"\"))"))
-	case *ast.ParenExpr:
-		return Parens{p.exprToAddable(s.X, args)}
-	case *ast.Ident:
-		switch s.Name {
-		case "true", "false":
-			// True/false values do not have Obj set,
-			// and if it is set - the value is re-defined.
-			if s.Obj != nil {
-				break
-			}
-
-			return NewSimple(param, raw(s.Name))
-		}
-
-		argPos, ok := args[s.Name]
-		if !ok {
-			p.c.panicWithPos(s, "argument is not provided: "+s.Name)
-		}
-
-		return NewSimple(param, fromArgs(argPos))
-	default:
-		p.c.panicWithPos(s, fmt.Sprintf("unsupported binary argument type %T", s))
-
-		return nil
-	}
+	return p.getAddable(s, args)
 }
 
 func (c *Context) exprName(expr ast.Expr) string {

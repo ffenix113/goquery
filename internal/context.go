@@ -188,12 +188,17 @@ func (p *whereBodyParser) parse(body *ast.BlockStmt) Addable {
 		p.c.panicWithPos(body.List[0], "filter function is expected to only have single return statement")
 	}
 
-	binaryExpr, ok := returnStmt.Results[0].(*ast.BinaryExpr)
-	if !ok {
-		p.c.panicWithPos(returnStmt.Results[0], "only binary expressions are supported currently")
+	switch tpd := returnStmt.Results[0].(type) {
+	case *ast.BinaryExpr:
+		return p.parseBinaryExpression(tpd)
+	case *ast.SelectorExpr:
+		return p.parseSelectorExpression(tpd)
+	case *ast.UnaryExpr:
+		return p.parseUnaryExpression(tpd)
+	default:
+		p.c.panicWithPos(returnStmt.Results[0], fmt.Sprintf("expression with type %T cannot be used as filter currently", tpd))
+		return nil
 	}
-
-	return p.parseBinaryExpression(binaryExpr)
 }
 
 type whereBodyParser struct {
@@ -204,4 +209,24 @@ type whereBodyParser struct {
 
 func (p *whereBodyParser) parseBinaryExpression(expr *ast.BinaryExpr) Addable {
 	return p.fromBinaryExpr(expr, p.args)
+}
+
+func (p *whereBodyParser) parseSelectorExpression(expr *ast.SelectorExpr) Addable {
+	receiver, ok := expr.X.(*ast.Ident)
+	if !ok || receiver.Name != p.paramName {
+		p.c.panicWithPos(expr, "only possible to to select field from parameter")
+		return nil
+	}
+
+	cmp := comparison{
+		Left:  NewColumn(expr.Sel.Name),
+		Right: NewSimple(param, true),
+	}
+	cmp.setOp(token.EQL)
+
+	return &cmp
+}
+
+func (p *whereBodyParser) parseUnaryExpression(expr *ast.UnaryExpr) Addable {
+	return p.getAddable(expr, p.args)
 }

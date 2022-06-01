@@ -49,6 +49,7 @@ func main() {
 	// closure()
 	// badClosure()
 	// compareToTrue()
+	// unaryBoolean()
 }
 
 func basic() {
@@ -149,6 +150,16 @@ func compareToTrue() {
 	q.Where(func(book *Book) bool {
 		return book.IsSelling == true
 	})
+}
+
+func unaryBoolean() {
+	q := newQueryable[*Book]()
+
+	var b bool
+
+	q.Where(func(book *Book) bool {
+		return !!b || !book.IsSelling
+	}, b)
 }
 
 // Just some helpers

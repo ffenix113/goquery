@@ -2,68 +2,16 @@
 
 .NET IQueryable-like query library for Go.
 
-Currently, it provides minimal support for required interface functionality,
-and even less for filtering options.
-
-### Background
-
-As an example in EF Core it is possible to filter rows by providing expressions:
-```cs
-var products = context.Prducts.Where(p => p.CategoryId == 1 && p.UnitsInStock < 10);
-```
-While example is extremely basic and does not show all the features,  
-it does represent what this project is trying to achieve.
-
-#### Alternative: semi-manually written queries
-
-In most of the SQL libraries for Go you need to manually write 
-field names and comparisons, for example like in [GORM](https://gorm.io/docs/query.html#String-Conditions):
-```go
-// AND
-db.Where("name = ? AND age >= ?", "jinzhu", "22").Find(&users)
-// SELECT * FROM users WHERE name = 'jinzhu' AND age >= 22;
-```
-This means that when field is changed - you need to manually update all the 
-queries that use it.
-
-#### Alternative: generate query modifications
-
-There are options to generate query modificators from Go structs or SQL tables 
-like [go-queryset](https://github.com/jirfag/go-queryset) and [SQLBoiler](https://github.com/volatiletech/sqlboiler).
-
-Those libraries generate query modifications like this:
-```go
-// go-queryset: https://github.com/jirfag/go-queryset#select-n-users-with-highest-rating
-// Generated from Go struct definitions
-
-var users []User
-err := NewUserQuerySet(getGormDB()).
-	RatingMarksGte(minMarks).
-	OrderDescByRating().
-	Limit(N).
-	All(&users)
-```
-```go
-// sqlboiler: https://github.com/volatiletech/sqlboiler#select
-// Generated from SQL Table definitions
-
-// Type safe variant
-pilot, err := models.Pilots(models.PilotWhere.Name.EQ("Tim")).One(ctx, db)
-```
-
-Above example are somewhat closer to direct implementation, but they are still not 
-real query generation from function definition.
-
-If only there was a way to transform in .NET
-```cs
-var products = context.Prducts.Where(p => p.CategoryId == 1 && p.UnitsInStock < 10);
-```
-to something like this in Go:
+This generator allows you to write SQL query with ordinary functions:
 ```go
 q = q.Where(func(p Product) bool { return p.CategoryId == 1 && p.UnitsInStock < 10 })
 // And then query value with normal *bun.DB functionality
 var product Product
 err := q.Query().Model(&product).Scan(context.Background())
+```
+, just like you would be able with EF Core framework in .NET:
+```cs
+var products = context.Prducts.Where(p => p.CategoryId == 1 && p.UnitsInStock < 10);
 ```
 
 ### Getting started
@@ -91,16 +39,11 @@ type User struct {
 }
 
 func main() {
-	// Get *bun.DB connection
+	// Get *bun.DB connection somehow
 	db := getDB()
 	// Create factory that will create Queryable for User.
 	queryableUserFactory := goquery.NewFactory[User](db)
 	// Create Queryable for User.
-	//
-	// This is needed because we need to 
-	// have a new select query for each DBSet.
-	// Otherwise, all methods on dbSet will be executed on 
-	// the same query shared between all instances of Queryable.
 	//
 	// Or you can also do 
 	// `queryableUserFactory.New(db.NewSelect().Model(...))`
@@ -142,6 +85,13 @@ queryable.Where(func(user User) bool {
 queryable.Where(func(book *Book) bool {
     // Same for false
     return book.IsSelling == true
+})
+```
+* Use just boolean field from model and `!` operator
+```go
+queryable.Where(func(book *Book) bool {
+    // Same for false
+    return book.IsSelling || !book.IsSelling
 })
 ```
 * Using simple function as filter.  
