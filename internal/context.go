@@ -119,7 +119,6 @@ func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
 		}
 		// Get type
 		typeName := getTypeArgName(identType)
-		_ = typeName
 
 		addable := bodyParser.parse(whereFunc.Body)
 		typeCalls, ok := c.Data[typeName]
@@ -170,14 +169,14 @@ func (c *Context) unwrapArgFunc(expr ast.Expr) *ast.FuncLit {
 		case *ast.AssignStmt:
 			return c.unwrapArgFunc(declType.Rhs[0])
 		case *ast.Field:
-			c.panicWithPos(expr, "cannot generate filter from field")
+			c.panicWithPosf(expr, "cannot generate filter from field")
 		default:
-			c.panicWithPos(argType, fmt.Sprintf("cannot parse function from type %T", declType))
+			c.panicWithPosf(argType, "cannot parse function from type %T", declType)
 		}
 	case *ast.FuncLit:
 		return argType
 	default:
-		c.panicWithPos(expr, fmt.Sprintf("don't know how to unwrap type %T to function", expr))
+		c.panicWithPosf(expr, "don't know how to unwrap type %T to function", expr)
 	}
 	return nil
 }
@@ -185,7 +184,7 @@ func (c *Context) unwrapArgFunc(expr ast.Expr) *ast.FuncLit {
 func (p *whereBodyParser) parse(body *ast.BlockStmt) Addable {
 	returnStmt, ok := body.List[0].(*ast.ReturnStmt)
 	if !ok {
-		p.c.panicWithPos(body.List[0], "filter function is expected to only have single return statement")
+		p.c.panicWithPosf(body.List[0], "filter function is expected to only have single return statement")
 	}
 
 	switch tpd := returnStmt.Results[0].(type) {
@@ -195,8 +194,10 @@ func (p *whereBodyParser) parse(body *ast.BlockStmt) Addable {
 		return p.parseSelectorExpression(tpd)
 	case *ast.UnaryExpr:
 		return p.parseUnaryExpression(tpd)
+	case *ast.CallExpr:
+		return p.parseCallExpression(tpd)
 	default:
-		p.c.panicWithPos(returnStmt.Results[0], fmt.Sprintf("expression with type %T cannot be used as filter currently", tpd))
+		p.c.panicWithPosf(returnStmt.Results[0], "expression with type %T cannot be used as filter currently", tpd)
 		return nil
 	}
 }
@@ -214,7 +215,7 @@ func (p *whereBodyParser) parseBinaryExpression(expr *ast.BinaryExpr) Addable {
 func (p *whereBodyParser) parseSelectorExpression(expr *ast.SelectorExpr) Addable {
 	receiver, ok := expr.X.(*ast.Ident)
 	if !ok || receiver.Name != p.paramName {
-		p.c.panicWithPos(expr, "only possible to to select field from parameter")
+		p.c.panicWithPosf(expr, "only possible to to select field from parameter")
 		return nil
 	}
 
@@ -228,5 +229,9 @@ func (p *whereBodyParser) parseSelectorExpression(expr *ast.SelectorExpr) Addabl
 }
 
 func (p *whereBodyParser) parseUnaryExpression(expr *ast.UnaryExpr) Addable {
+	return p.getAddable(expr, p.args)
+}
+
+func (p *whereBodyParser) parseCallExpression(expr *ast.CallExpr) Addable {
 	return p.getAddable(expr, p.args)
 }

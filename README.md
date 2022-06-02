@@ -90,7 +90,6 @@ queryable.Where(func(book *Book) bool {
 * Use just boolean field from model and `!` operator
 ```go
 queryable.Where(func(book *Book) bool {
-    // Same for false
     return book.IsSelling || !book.IsSelling
 })
 ```
@@ -116,12 +115,18 @@ queryable.Where(func(user User) bool {
     return user.Name == someName || user.Name == someName2 || user.Name == someName
 }, someName, someName2)
 ```
-
 * Comparisons to other variables in other structs.
 ```go
 queryable.Where(func(user User) bool {
     return user.Name == anotherUser.Name || user.ID == someStruct.User.ID
 }, anotherUser.Name, someStruct.User.ID)
+```
+* Some minor time operations are supported(`Equal`, `Before` and `After`).
+  (with `Add` method in the future)
+```go
+queryable.Where(func(user User) bool {
+    return user.RegisteredAt.Before(time.Now()) || time.Now().After(user.NextUpdate)
+})
 ```
 * Chaining calls to `Where` method.
 ```go

@@ -67,15 +67,21 @@ type comparison struct {
 }
 
 func newComparison(parser *whereBodyParser, binaryExpr *ast.BinaryExpr) Addable {
-	c := &comparison{
-		p: parser,
+	return newAddableComparison(
+		parser.exprToAddable(binaryExpr.X, parser.args),
+		binaryExpr.Op,
+		parser.exprToAddable(binaryExpr.Y, parser.args),
+	)
+}
+
+func newAddableComparison(left Addable, op token.Token, right Addable) Addable {
+	cmp := &comparison{
+		Left:  left,
+		Right: right,
 	}
+	cmp.setOp(op)
 
-	c.setLeft(binaryExpr.X)
-	c.setOp(binaryExpr.Op)
-	c.setRight(binaryExpr.Y)
-
-	return c
+	return cmp
 }
 
 func (c *comparison) setOp(cmpToken token.Token) {
@@ -127,7 +133,7 @@ func (c *Context) exprName(expr ast.Expr) string {
 	case *ast.SelectorExpr:
 		return c.exprName(expr.X) + "." + expr.Sel.Name
 	default:
-		c.panicWithPos(expr, fmt.Sprintf("unsupported expression type %T", expr))
+		c.panicWithPosf(expr, "unsupported expression type %T", expr)
 		return ""
 	}
 }
@@ -167,6 +173,7 @@ func fromArgs(pos int) raw {
 	return raw(fmt.Sprintf("args[%d]", pos))
 }
 
-func (c *Context) panicWithPos(node ast.Node, msg string) {
-	panic(fmt.Sprintf("%s: %s", c.FileSet.Position(node.Pos()).String(), msg))
+func (c *Context) panicWithPosf(node ast.Node, msg string, args ...any) {
+	formattedMsg := fmt.Sprintf(msg, args...)
+	panic(fmt.Sprintf("%s: %s", c.FileSet.Position(node.Pos()).String(), formattedMsg))
 }

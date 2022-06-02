@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"os"
+	"time"
 
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/sqlitedialect"
@@ -50,6 +51,7 @@ func main() {
 	// badClosure()
 	// compareToTrue()
 	// unaryBoolean()
+	// someTimeFuncs()
 }
 
 func basic() {
@@ -70,15 +72,6 @@ func basic() {
 
 func filter(b Book) bool {
 	return b.Released > 0
-}
-
-// Unary expressions are not supported and will result in parsing panic.
-func unary() {
-	// q := newQueryable[Book]()
-
-	// q.Where(func(book Book) bool {
-	// 	return !book.IsSelling // This will panic on generation
-	// })
 }
 
 func pointerAndMultiline() {
@@ -160,6 +153,17 @@ func unaryBoolean() {
 	q.Where(func(book *Book) bool {
 		return !!b || !book.IsSelling
 	}, b)
+}
+
+type str struct {
+	Time time.Time
+}
+
+func someTimeFuncs() {
+	q := newQueryable[*str]()
+	q.Where(func(s *str) bool {
+		return s.Time.After(time.Now()) || time.Now().Equal(time.Now())
+	})
 }
 
 // Just some helpers

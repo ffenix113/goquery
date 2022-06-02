@@ -29,7 +29,7 @@ func main() {
 		panic(err)
 	}
 
-	// ast.Print(c.fileSet, c.astFile)
+	// ast.Print(c.FileSet, c.AstFile)
 
 	ast.Walk(&c, c.AstFile)
 
