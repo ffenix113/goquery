@@ -1,6 +1,7 @@
 package goquery
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/uptrace/bun"
@@ -17,6 +18,11 @@ type Factory[T any] interface {
 }
 
 func NewFactory[T any](db *bun.DB, helper ...Helper) Factory[T] {
+	var t T
+	if tp := reflect.TypeOf(t); tp.Kind() != reflect.Pointer || tp.Elem().Kind() != reflect.Struct {
+		panic(fmt.Sprintf("input type argument must be a pointer to a struct, but got %T", t))
+	}
+
 	var selectedHelper Helper
 	if len(helper) > 0 {
 		selectedHelper = helper[0]
