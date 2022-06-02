@@ -17,6 +17,6 @@ var goquery{{$EntityTypeName}}CallerMap = goquery.Calls{
 
 func init() {
 {{- range $EntityTypeName, $_ := .Data }}
-    goquery.AddToGlobalEntity[{{$EntityTypeName}}](goquery{{$EntityTypeName}}CallerMap)
+    goquery.AddToGlobalEntity[*{{$EntityTypeName}}](goquery{{$EntityTypeName}}CallerMap)
 {{end -}}
 }
