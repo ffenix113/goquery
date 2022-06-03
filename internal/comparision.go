@@ -58,7 +58,7 @@ func (c comparisonOr) Args() []any {
 	return append(c.left.Args(), c.right.Args()...)
 }
 
-type comparison struct {
+type binary struct {
 	Op    string
 	Left  Addable
 	Right Addable
@@ -67,47 +67,47 @@ type comparison struct {
 }
 
 func newComparison(parser *whereBodyParser, binaryExpr *ast.BinaryExpr) Addable {
-	return newAddableComparison(
+	return newBinary(
 		parser.exprToAddable(binaryExpr.X, parser.args),
-		binaryExpr.Op,
+		tokenToOperation(binaryExpr.Op),
 		parser.exprToAddable(binaryExpr.Y, parser.args),
 	)
 }
 
-func newAddableComparison(left Addable, op token.Token, right Addable) Addable {
-	cmp := &comparison{
+func newBinary(left Addable, op string, right Addable) Addable {
+	cmp := &binary{
 		Left:  left,
 		Right: right,
+		Op:    op,
 	}
-	cmp.setOp(op)
 
 	return cmp
 }
 
-func (c *comparison) setOp(cmpToken token.Token) {
+func tokenToOperation(cmpToken token.Token) string {
 	switch cmpToken {
 	case token.EQL:
-		c.Op = "="
+		return "="
 	case token.GTR:
-		c.Op = ">"
+		return ">"
 	case token.LSS:
-		c.Op = "<"
+		return "<"
 	case token.NEQ:
-		c.Op = "!="
+		return "!="
 	case token.LEQ:
-		c.Op = "<="
+		return "<="
 	case token.GEQ:
-		c.Op = ">="
+		return ">="
 	default:
 		panic("unsupported operator: " + cmpToken.String())
 	}
 }
 
-func (c *comparison) setLeft(s ast.Expr) {
+func (c *binary) setLeft(s ast.Expr) {
 	c.Left = c.p.exprToAddable(s, c.p.args)
 }
 
-func (c *comparison) setRight(s ast.Expr) {
+func (c *binary) setRight(s ast.Expr) {
 	c.Right = c.p.exprToAddable(s, c.p.args)
 }
 
@@ -153,7 +153,7 @@ func getArg(val *ast.BasicLit) (arg any) {
 	return arg
 }
 
-func (c *comparison) String() string {
+func (c *binary) String() string {
 	var buf strings.Builder
 
 	buf.WriteString(c.Left.String())
@@ -165,7 +165,7 @@ func (c *comparison) String() string {
 	return buf.String()
 }
 
-func (c *comparison) Args() []any {
+func (c *binary) Args() []any {
 	return append(append([]any(nil), c.Left.Args()...), c.Right.Args()...)
 }
 

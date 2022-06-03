@@ -14,16 +14,16 @@ import (
 var addableGenerators = map[string][]addableGenerator{}
 
 type addableGenerator func(p *whereBodyParser, s ast.Expr, args map[string]int) Addable
-type typedAddableGenerator[T ast.Expr] func(p *whereBodyParser, s T, args map[string]int) Addable
+type typedGenerator[T ast.Expr] func(p *whereBodyParser, s T, args map[string]int) Addable
 
 func init() {
-	addAddableGenerator(func(p *whereBodyParser, s *ast.BasicLit, args map[string]int) Addable {
+	addGenerator(func(p *whereBodyParser, s *ast.BasicLit, args map[string]int) Addable {
 		return NewSimple(param, getArg(s))
 	})
-	addAddableGenerator(func(p *whereBodyParser, s *ast.BinaryExpr, args map[string]int) Addable {
+	addGenerator(func(p *whereBodyParser, s *ast.BinaryExpr, args map[string]int) Addable {
 		return p.fromBinaryExpr(s, args)
 	})
-	addAddableGenerator(func(p *whereBodyParser, s *ast.SelectorExpr, args map[string]int) Addable {
+	addGenerator(func(p *whereBodyParser, s *ast.SelectorExpr, args map[string]int) Addable {
 		// Supports more cases for arguments
 		gotExprName := p.c.exprName(s)
 		if !strings.HasPrefix(gotExprName, p.paramName+".") {
@@ -37,10 +37,10 @@ func init() {
 
 		return NewColumn(s.Sel.Name)
 	})
-	addAddableGenerator(func(p *whereBodyParser, s *ast.ParenExpr, args map[string]int) Addable {
+	addGenerator(func(p *whereBodyParser, s *ast.ParenExpr, args map[string]int) Addable {
 		return Parens{p.exprToAddable(s.X, args)}
 	})
-	addAddableGenerator(func(p *whereBodyParser, s *ast.Ident, args map[string]int) Addable {
+	addGenerator(func(p *whereBodyParser, s *ast.Ident, args map[string]int) Addable {
 		switch s.Name {
 		case "true", "false":
 			// True/false values do not have Obj set,
@@ -59,7 +59,7 @@ func init() {
 
 		return NewSimple(param, fromArgs(argPos))
 	})
-	addAddableGenerator(func(p *whereBodyParser, s *ast.UnaryExpr, args map[string]int) Addable {
+	addGenerator(func(p *whereBodyParser, s *ast.UnaryExpr, args map[string]int) Addable {
 		switch s.Op {
 		case token.NOT:
 			return Not{p.getAddable(s.X, args)}
@@ -69,62 +69,92 @@ func init() {
 		}
 	})
 	// Add some time functions
-	addAddableGenerator(func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-		funcSelectorExpr, ok := s.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return nil
-		}
-		// Check that we call these methods on "time.Time" type.
-		if !p.exprIsOfType(funcSelectorExpr.X, "time", "Time") {
-			return nil
-		}
+	addTypeFuncGenerator("time.Time", "After", "Before", "Equal")(
+		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+			funcSelectorExpr := s.Fun.(*ast.SelectorExpr)
 
-		// selectorType := p.c.TypeInfo.TypeOf(selectorExpr.X)
-		// selectorNamedType, ok := selectorType.(*types.Named)
-		// if !ok {
-		// 	return nil
-		// }
-		// // Check that type is "time.Time"
-		// if obj := selectorNamedType.Obj(); obj.Pkg() == nil || obj.Pkg().Name() != "time" || obj.Name() != "Time" {
-		// 	return nil
-		// }
+			var op string
 
-		var op token.Token
+			switch funcSelectorExpr.Sel.Name {
+			case "After":
+				op = tokenToOperation(token.GTR)
+			case "Before":
+				op = tokenToOperation(token.LSS)
+			case "Equal":
+				op = tokenToOperation(token.EQL)
+			default:
+				p.c.panicWithPosf(funcSelectorExpr.Sel, "time function is not supported: %q", funcSelectorExpr.Sel.Name)
+			}
 
-		switch funcSelectorExpr.Sel.Name {
-		case "After":
-			op = token.GTR
-		case "Before":
-			op = token.LSS
-		case "Equal":
-			op = token.EQL
-		default:
-			p.c.panicWithPosf(funcSelectorExpr.Sel, "time function is not supported: %q", funcSelectorExpr.Sel.Name)
-		}
+			return newBinary(
+				p.exprToAddable(funcSelectorExpr.X, args),
+				op,
+				p.exprToAddable(s.Args[0], args),
+			)
+		},
+	)
 
-		return newAddableComparison(
-			p.exprToAddable(funcSelectorExpr.X, args),
-			op,
-			p.exprToAddable(s.Args[0], args),
-		)
-	})
+	addPackageFuncGenerator("time", "Now")(
+		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+			return NewSimple("NOW()")
+		},
+	)
 
-	addAddableGenerator(func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-		selector, ok := s.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return nil
-		}
+	addPackageFuncGenerator("strings", "ToUpper", "ToLower")(
+		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+			var strF func(Addable) string
+			switch s.Fun.(*ast.SelectorExpr).Sel.Name {
+			case "ToUpper":
+				strF = func(a Addable) string { return "upper(" + a.String() + ")" }
+			case "ToLower":
+				strF = func(a Addable) string { return "lower(" + a.String() + ")" }
+			}
 
-		if selector.Sel.Name != "Now" {
-			return nil
-		}
+			return Wrapper{
+				Addable: p.exprToAddable(s.Args[0], args),
+				StringF: strF,
+			}
 
-		if ident, ok := selector.X.(*ast.Ident); !ok || ident.Name != "time" {
-			return nil
-		}
+		},
+	)
+	addPackageFuncGenerator("strings", "Contains")(
+		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+			// ? LIKE '%' || ? || '%'
+			return newBinary(
+				p.exprToAddable(s.Args[0], args),
+				"LIKE",
+				Wrapper{
+					Addable: p.exprToAddable(s.Args[1], args),
+					StringF: func(a Addable) string {
+						return `'%' || ` + a.String() + ` || '%'`
+					},
+				},
+			)
+		},
+	)
+	addPackageFuncGenerator("strings", "HasPrefix", "HasSuffix")(
+		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+			// HasPrefix: ? LIKE ? || '%'
+			// HasSuffix: ? LIKE '%' || ?
+			var strF func(Addable) string
+			switch s.Fun.(*ast.SelectorExpr).Sel.Name {
+			case "HasPrefix":
+				strF = func(a Addable) string { return a.String() + ` || '%'` }
+			case "HasSuffix":
+				strF = func(a Addable) string { return `'%' || ` + a.String() }
+			}
 
-		return NewSimple("NOW()")
-	})
+			return newBinary(
+				p.exprToAddable(s.Args[0], args),
+				"LIKE",
+				Wrapper{
+					Addable: p.exprToAddable(s.Args[1], args),
+					StringF: strF,
+				},
+			)
+
+		},
+	)
 }
 
 func wrapper[T ast.Expr](f func(p *whereBodyParser, s T, args map[string]int) Addable) addableGenerator {
@@ -152,11 +182,65 @@ func (p *whereBodyParser) getAddable(expr ast.Expr, args map[string]int) Addable
 	return nil
 }
 
-func addAddableGenerator[T ast.Expr](f typedAddableGenerator[T]) {
+func addGenerator[T ast.Expr](f typedGenerator[T]) {
 	var t T
 	strTp := typeKey(t)
 
 	addableGenerators[strTp] = append(addableGenerators[strTp], wrapper(f))
+}
+
+func addPackageFuncGenerator(packageName string, funcNames ...string) func(generator typedGenerator[*ast.CallExpr]) {
+	funcNamesMap := map[string]struct{}{}
+	for _, funcName := range funcNames {
+		funcNamesMap[funcName] = struct{}{}
+	}
+
+	return func(generator typedGenerator[*ast.CallExpr]) {
+		addGenerator(func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+			selector, ok := s.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return nil
+			}
+
+			if ident, ok := selector.X.(*ast.Ident); !ok || ident.Obj != nil || ident.Name != packageName {
+				return nil
+			}
+
+			if _, ok := funcNamesMap[selector.Sel.Name]; !ok {
+				return nil
+			}
+
+			return generator(p, s, args)
+		})
+	}
+}
+
+func addTypeFuncGenerator(typeName string, funcNames ...string) func(generator typedGenerator[*ast.CallExpr]) {
+	funcNamesMap := map[string]struct{}{}
+	for _, funcName := range funcNames {
+		funcNamesMap[funcName] = struct{}{}
+	}
+
+	packageName, typeName := splitType(typeName)
+
+	return func(generator typedGenerator[*ast.CallExpr]) {
+		addGenerator(func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+			funcSelectorExpr, ok := s.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return nil
+			}
+			// Check that we call these methods on "time.Time" type.
+			if !p.exprIsOfType(funcSelectorExpr.X, packageName, typeName) {
+				return nil
+			}
+
+			if _, ok := funcNamesMap[funcSelectorExpr.Sel.Name]; !ok {
+				return nil
+			}
+
+			return generator(p, s, args)
+		})
+	}
 }
 
 func typeKey[T ast.Expr](e T) string {
@@ -182,4 +266,10 @@ func (p *whereBodyParser) exprIsOfType(t ast.Expr, packageName, typeName string)
 	}
 
 	return pkgEqual && typeEql
+}
+
+func splitType(input string) (packageName string, typeName string) {
+	lastDot := strings.LastIndex(input, ".")
+
+	return input[:lastDot], input[lastDot+1:]
 }

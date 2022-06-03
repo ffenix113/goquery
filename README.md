@@ -74,6 +74,8 @@ Now run `go generate` which should result in a new file `<filename>_goquery.go`
 which contains necessary definitions for resulting SQL queries.
 
 ### What this project can currently do
+Please see `examples` package to see more uses and available functionality.
+
 * Basic comparisons to constants and most of binary expressions.
 ```go
 queryable.Where(func(user User) bool {
@@ -128,6 +130,7 @@ queryable.Where(func(user User) bool {
     return user.RegisteredAt.Before(time.Now()) || time.Now().After(user.NextUpdate)
 })
 ```
+* Some `strings` functions(`ToUpper`, `ToLower`, `Contains`, `HasPrefix` and `HasSuffix`).
 * Chaining calls to `Where` method.
 ```go
 queryable.Where(func(user User) bool {

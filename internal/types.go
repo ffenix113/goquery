@@ -78,3 +78,38 @@ type Not struct {
 func (n Not) String() string {
 	return "not (" + n.Addable.String() + ")"
 }
+
+// Wrapper takes an addable and wraps it.
+//
+// For example if string representation of Addable
+// should be concatenated with something else like:
+// `Addable.String()` to `'%' || Addable.String() || '%'".
+//
+// Wrapper defined above would look like this:
+//	Wrapper{
+//		Addable: addable,
+//		StringF: func(a Addable) string {
+//			return `'%' || ` + a.String() + ` || '%'`
+//		}
+//	}
+type Wrapper struct {
+	Addable
+	StringF func(a Addable) string
+	ArgsF   func(a Addable) []any
+}
+
+func (w Wrapper) String() string {
+	if w.StringF != nil {
+		return w.StringF(w.Addable)
+	}
+
+	return w.Addable.String()
+}
+
+func (w Wrapper) Args() []any {
+	if w.ArgsF != nil {
+		return w.ArgsF(w.Addable)
+	}
+
+	return w.Addable.Args()
+}

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -52,6 +53,8 @@ func main() {
 	// compareToTrue()
 	// unaryBoolean()
 	// someTimeFuncs()
+	// stringFuncs()
+	// stringPrefixSuffixFuncs()
 }
 
 func basic() {
@@ -91,7 +94,7 @@ func passingToAFunction() {
 }
 
 func addWhere(q entity.Queryable[*Book]) {
-	q.Where(func(b *Book) bool { return b.Title == "AnotherFunc" })
+	q.Where(func(b *Book) bool { return b.Title == "AnotherTitle" })
 }
 
 // Passing filter as a field will not work
@@ -103,7 +106,7 @@ func filterFromArgument() {
 	// func(f func(b *Book) bool) {
 	// 	q.Where(f)
 	// }(func(b *Book) bool {
-	// 	return b.Title == "AnotherFunc"
+	// 	return b.Title == "AnotherTitle"
 	// })
 }
 
@@ -163,6 +166,18 @@ func someTimeFuncs() {
 	q := newQueryable[*str]()
 	q.Where(func(s *str) bool {
 		return s.Time.After(time.Now()) || time.Now().Equal(time.Now())
+	})
+}
+
+func stringFuncs() {
+	newQueryable[*Book]().Where(func(b *Book) bool {
+		return b.Title == strings.ToUpper(b.Title) || strings.Contains(b.Title, "contains")
+	})
+}
+
+func stringPrefixSuffixFuncs() {
+	newQueryable[*Book]().Where(func(b *Book) bool {
+		return strings.HasPrefix(b.Author, "prefix") || strings.HasSuffix(b.Title, "suffix")
 	})
 }
 

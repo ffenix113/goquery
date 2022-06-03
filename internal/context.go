@@ -219,11 +219,11 @@ func (p *whereBodyParser) parseSelectorExpression(expr *ast.SelectorExpr) Addabl
 		return nil
 	}
 
-	cmp := comparison{
+	cmp := binary{
 		Left:  NewColumn(expr.Sel.Name),
 		Right: NewSimple(param, true),
+		Op:    tokenToOperation(token.EQL),
 	}
-	cmp.setOp(token.EQL)
 
 	return &cmp
 }
