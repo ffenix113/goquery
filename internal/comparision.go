@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"math/bits"
 	"strconv"
 	"strings"
-	"unsafe"
 )
 
 const param = "?"
@@ -62,8 +62,6 @@ type binary struct {
 	Op    string
 	Left  Addable
 	Right Addable
-
-	p *whereBodyParser
 }
 
 func newComparison(parser *whereBodyParser, binaryExpr *ast.BinaryExpr) Addable {
@@ -103,14 +101,6 @@ func tokenToOperation(cmpToken token.Token) string {
 	}
 }
 
-func (c *binary) setLeft(s ast.Expr) {
-	c.Left = c.p.exprToAddable(s, c.p.args)
-}
-
-func (c *binary) setRight(s ast.Expr) {
-	c.Right = c.p.exprToAddable(s, c.p.args)
-}
-
 func (p *whereBodyParser) fromBinaryExpr(expr *ast.BinaryExpr, args map[string]int) Addable {
 	switch expr.Op {
 	case token.LOR:
@@ -141,9 +131,9 @@ func (c *Context) exprName(expr ast.Expr) string {
 func getArg(val *ast.BasicLit) (arg any) {
 	switch val.Kind {
 	case token.INT:
-		arg, _ = strconv.Atoi(val.Value)
+		arg, _ = strconv.ParseInt(val.Value, 10, bits.UintSize)
 	case token.FLOAT:
-		arg, _ = strconv.ParseFloat(val.Value, int(unsafe.Sizeof(int(0))))
+		arg, _ = strconv.ParseFloat(val.Value, bits.UintSize)
 	case token.STRING:
 		arg, _ = strconv.Unquote(val.Value)
 	default:
