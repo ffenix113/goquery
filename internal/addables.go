@@ -16,7 +16,12 @@ var addableGenerators = map[string][]addableGenerator{}
 type addableGenerator func(p *whereBodyParser, s ast.Expr, args map[string]int) Addable
 type typedGenerator[T ast.Expr] func(p *whereBodyParser, s T, args map[string]int) Addable
 
+var typeMethods = map[string]map[string]typedGenerator[*ast.CallExpr]{}
+var packageFuncs = map[string]map[string]typedGenerator[*ast.CallExpr]{}
+
 func init() {
+	// Basic generators, they are not specific
+	// to some type, package or variable/const.
 	addGenerator(func(p *whereBodyParser, s *ast.BasicLit, args map[string]int) Addable {
 		return NewSimple(param, getArg(s))
 	})
@@ -68,93 +73,21 @@ func init() {
 			return nil
 		}
 	})
-	// Add some time functions
-	addTypeFuncGenerator("time.Time", "After", "Before", "Equal")(
-		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-			funcSelectorExpr := s.Fun.(*ast.SelectorExpr)
 
-			var op string
+	addPackageFuncGenerator("time", "Now", TimePackage{}.now)
 
-			switch funcSelectorExpr.Sel.Name {
-			case "After":
-				op = tokenToOperation(token.GTR)
-			case "Before":
-				op = tokenToOperation(token.LSS)
-			case "Equal":
-				op = tokenToOperation(token.EQL)
-			default:
-				p.c.panicWithPosf(funcSelectorExpr.Sel, "time function is not supported: %q", funcSelectorExpr.Sel.Name)
-			}
+	addPackageFuncGenerator("strings", "Contains", StringsPackage{}.contains)
+	addPackageFuncGenerator("strings", "ToLower", StringsPackage{}.toLower)
+	addPackageFuncGenerator("strings", "ToUpper", StringsPackage{}.toUpper)
+	addPackageFuncGenerator("strings", "HasPrefix", StringsPackage{}.hasPrefix)
+	addPackageFuncGenerator("strings", "HasSuffix", StringsPackage{}.hasSuffix)
 
-			return newBinary(
-				p.exprToAddable(funcSelectorExpr.X, args),
-				op,
-				p.exprToAddable(s.Args[0], args),
-			)
-		},
-	)
+	addTypeFuncGenerator("time.Time", "After", TimeType{}.cmp(tokenToOperation(token.GTR)))
+	addTypeFuncGenerator("time.Time", "Before", TimeType{}.cmp(tokenToOperation(token.LSS)))
+	addTypeFuncGenerator("time.Time", "Equal", TimeType{}.cmp(tokenToOperation(token.EQL)))
 
-	addPackageFuncGenerator("time", "Now")(
-		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-			return NewSimple("NOW()")
-		},
-	)
-
-	addPackageFuncGenerator("strings", "ToUpper", "ToLower")(
-		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-			var strF func(Addable) string
-			switch s.Fun.(*ast.SelectorExpr).Sel.Name {
-			case "ToUpper":
-				strF = func(a Addable) string { return "upper(" + a.String() + ")" }
-			case "ToLower":
-				strF = func(a Addable) string { return "lower(" + a.String() + ")" }
-			}
-
-			return Wrapper{
-				Addable: p.exprToAddable(s.Args[0], args),
-				StringF: strF,
-			}
-
-		},
-	)
-	addPackageFuncGenerator("strings", "Contains")(
-		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-			// ? LIKE '%' || ? || '%'
-			return newBinary(
-				p.exprToAddable(s.Args[0], args),
-				"LIKE",
-				Wrapper{
-					Addable: p.exprToAddable(s.Args[1], args),
-					StringF: func(a Addable) string {
-						return `'%' || ` + a.String() + ` || '%'`
-					},
-				},
-			)
-		},
-	)
-	addPackageFuncGenerator("strings", "HasPrefix", "HasSuffix")(
-		func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-			// HasPrefix: ? LIKE ? || '%'
-			// HasSuffix: ? LIKE '%' || ?
-			var strF func(Addable) string
-			switch s.Fun.(*ast.SelectorExpr).Sel.Name {
-			case "HasPrefix":
-				strF = func(a Addable) string { return a.String() + ` || '%'` }
-			case "HasSuffix":
-				strF = func(a Addable) string { return `'%' || ` + a.String() }
-			}
-
-			return newBinary(
-				p.exprToAddable(s.Args[0], args),
-				"LIKE",
-				Wrapper{
-					Addable: p.exprToAddable(s.Args[1], args),
-					StringF: strF,
-				},
-			)
-
-		},
-	)
+	addTypeMethodGenerators()
+	addPackageFuncGenerators()
 }
 
 func wrapper[T ast.Expr](f func(p *whereBodyParser, s T, args map[string]int) Addable) addableGenerator {
@@ -168,7 +101,7 @@ func (p *whereBodyParser) getAddable(expr ast.Expr, args map[string]int) Addable
 
 	generators, ok := addableGenerators[strTp]
 	if !ok {
-		p.c.panicWithPosf(expr, "don't know how to convert type "+strTp)
+		p.c.panicWithPosf(expr, "don't know how to convert type %q to Addable", strTp)
 	}
 
 	for _, generator := range generators {
@@ -177,7 +110,7 @@ func (p *whereBodyParser) getAddable(expr ast.Expr, args map[string]int) Addable
 		}
 	}
 
-	p.c.panicWithPosf(expr, "didn't find any suitable generator for type "+strTp)
+	p.c.panicWithPosf(expr, "didn't find any suitable generator for type %q", strTp)
 
 	return nil
 }
@@ -189,87 +122,93 @@ func addGenerator[T ast.Expr](f typedGenerator[T]) {
 	addableGenerators[strTp] = append(addableGenerators[strTp], wrapper(f))
 }
 
-func addPackageFuncGenerator(packageName string, funcNames ...string) func(generator typedGenerator[*ast.CallExpr]) {
-	funcNamesMap := map[string]struct{}{}
-	for _, funcName := range funcNames {
-		funcNamesMap[funcName] = struct{}{}
+func addPackageFuncGenerator(packageName string, funcName string, generator typedGenerator[*ast.CallExpr]) {
+	mp := packageFuncs[packageName]
+	if mp == nil {
+		mp = map[string]typedGenerator[*ast.CallExpr]{}
+		packageFuncs[packageName] = mp
 	}
 
-	return func(generator typedGenerator[*ast.CallExpr]) {
-		addGenerator(func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-			selector, ok := s.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return nil
-			}
-
-			if ident, ok := selector.X.(*ast.Ident); !ok || ident.Obj != nil || ident.Name != packageName {
-				return nil
-			}
-
-			if _, ok := funcNamesMap[selector.Sel.Name]; !ok {
-				return nil
-			}
-
-			return generator(p, s, args)
-		})
-	}
+	mp[funcName] = generator
 }
 
-func addTypeFuncGenerator(typeName string, funcNames ...string) func(generator typedGenerator[*ast.CallExpr]) {
-	funcNamesMap := map[string]struct{}{}
-	for _, funcName := range funcNames {
-		funcNamesMap[funcName] = struct{}{}
+func addPackageFuncGenerators() {
+	addGenerator(func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+		selector, ok := s.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return nil
+		}
+
+		ident, ok := selector.X.(*ast.Ident)
+		if !ok || ident.Obj != nil {
+			return nil
+		}
+
+		funcGenerators, ok := packageFuncs[ident.Name]
+		if !ok {
+			return nil
+		}
+
+		generator, ok := funcGenerators[selector.Sel.Name]
+		if !ok {
+			return nil
+		}
+
+		return generator(p, s, args)
+	})
+}
+
+func addTypeFuncGenerator(typeName string, funcName string, generator typedGenerator[*ast.CallExpr]) {
+	mp := typeMethods[typeName]
+	if mp == nil {
+		mp = map[string]typedGenerator[*ast.CallExpr]{}
+		typeMethods[typeName] = mp
 	}
 
-	packageName, typeName := splitType(typeName)
+	mp[funcName] = generator
+}
 
-	return func(generator typedGenerator[*ast.CallExpr]) {
-		addGenerator(func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
-			funcSelectorExpr, ok := s.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return nil
-			}
-			// Check that we call these methods on "time.Time" type.
-			if !p.exprIsOfType(funcSelectorExpr.X, packageName, typeName) {
-				return nil
-			}
+func addTypeMethodGenerators() {
+	addGenerator(func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+		funcSelectorExpr, ok := s.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return nil
+		}
 
-			if _, ok := funcNamesMap[funcSelectorExpr.Sel.Name]; !ok {
-				return nil
-			}
+		strExprType, ok := p.exprType(funcSelectorExpr.X)
+		if !ok {
+			return nil
+		}
 
-			return generator(p, s, args)
-		})
-	}
+		typeMethodMap, ok := typeMethods[strExprType]
+		if !ok {
+			return nil
+		}
+
+		generator, ok := typeMethodMap[funcSelectorExpr.Sel.Name]
+		if !ok {
+			return nil
+		}
+
+		return generator(p, s, args)
+	})
 }
 
 func typeKey[T ast.Expr](e T) string {
 	return fmt.Sprintf("%T", e)
 }
 
-func (p *whereBodyParser) exprIsOfType(t ast.Expr, packageName, typeName string) bool {
+func (p *whereBodyParser) exprType(t ast.Expr) (string, bool) {
 	tp := p.c.TypeInfo.TypeOf(t)
 
 	namedTp, ok := tp.(*types.Named)
 	if !ok {
-		return false
+		return "", false
 	}
+
 	if namedTp.Obj().Pkg() == nil {
-		return false
+		return "", false
 	}
 
-	pkgEqual := namedTp.Obj().Pkg().Name() == packageName
-
-	typeEql := true
-	if typeName != "" {
-		typeEql = namedTp.Obj().Name() == typeName
-	}
-
-	return pkgEqual && typeEql
-}
-
-func splitType(input string) (packageName string, typeName string) {
-	lastDot := strings.LastIndex(input, ".")
-
-	return input[:lastDot], input[lastDot+1:]
+	return namedTp.Obj().Pkg().Name() + "." + namedTp.Obj().Name(), true
 }
