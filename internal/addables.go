@@ -74,6 +74,9 @@ func init() {
 		}
 	})
 
+	addPackageFuncGenerator("goquery", "In", GoQueryPackage{}.in)
+	addPackageFuncGenerator("goquery", "IsNull", GoQueryPackage{}.isNull)
+
 	addPackageFuncGenerator("time", "Now", TimePackage{}.now)
 
 	addPackageFuncGenerator("strings", "Contains", StringsPackage{}.contains)

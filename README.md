@@ -131,6 +131,13 @@ queryable.Where(func(user User) bool {
 })
 ```
 * Some `strings` functions(`ToUpper`, `ToLower`, `Contains`, `HasPrefix` and `HasSuffix`).
+* `In` and `IsNull` functions 
+```go
+args := []string{"1", "2"}
+queryable.Where(func(b *Book) bool {
+    return !goquery.IsNull(b.IsSelling) || goquery.In(b.Title, args)
+}, args)
+```
 * Chaining calls to `Where` method.
 ```go
 queryable.Where(func(user User) bool {

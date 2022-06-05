@@ -55,3 +55,30 @@ func (StringsPackage) toUpper(p *whereBodyParser, s *ast.CallExpr, args map[stri
 		StringF: func(a Addable) string { return "upper(" + a.String() + ")" },
 	}
 }
+
+type GoQueryPackage struct{}
+
+func (GoQueryPackage) isNull(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+	return Wrapper{
+		Addable: p.exprToAddable(s.Args[0], args),
+		StringF: func(a Addable) string {
+			return a.String() + " is null"
+		},
+	}
+}
+
+func (GoQueryPackage) in(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
+	if _, ok := args[p.c.exprName(s.Args[1])]; !ok {
+		p.c.panicWithPosf(s.Args[1], "argument is not present in Where arguments")
+	}
+
+	return Wrapper{
+		Addable: p.exprToAddable(s.Args[0], args),
+		StringF: func(a Addable) string {
+			return a.String() + " in (?)"
+		},
+		ArgsF: func(a Addable) []any {
+			return append(a.Args(), raw("bun.In("+fromArgs(0)+")"))
+		},
+	}
+}

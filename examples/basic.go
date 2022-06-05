@@ -181,6 +181,13 @@ func stringPrefixSuffixFuncs() {
 	})
 }
 
+func isNullAndInArray() {
+	args := []string{"1", "2"}
+	newQueryable[*Book]().Where(func(b *Book) bool {
+		return !goquery.IsNull(b.IsSelling) || goquery.In(b.Title, args)
+	}, args)
+}
+
 // Just some helpers
 
 func runSingleQuery[T any](q goquery.Queryable[T]) (res T) {

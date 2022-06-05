@@ -123,7 +123,7 @@ func (c *Context) exprName(expr ast.Expr) string {
 	case *ast.SelectorExpr:
 		return c.exprName(expr.X) + "." + expr.Sel.Name
 	default:
-		c.panicWithPosf(expr, "unsupported expression type %T", expr)
+		c.panicWithPosf(expr, "unsupported expression type %T to get name from", expr)
 		return ""
 	}
 }
