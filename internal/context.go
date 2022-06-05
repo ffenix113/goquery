@@ -54,9 +54,23 @@ func newQueryData(addable Addable) QueryData {
 func (c *Context) ParseFile(filePath string) error {
 	fileSet := token.NewFileSet()
 
-	astFile, err := parser.ParseFile(fileSet, filePath, nil, 0)
+	astDir, err := parser.ParseDir(fileSet, filepath.Dir(filePath), nil, 0)
 	if err != nil {
 		return err
+	}
+
+	var astFile *ast.File
+	for _, pkg := range astDir {
+		for pkgFilePath, file := range pkg.Files {
+			if filePath == pkgFilePath {
+				astFile = file
+				break
+			}
+		}
+
+		if astFile != nil {
+			break
+		}
 	}
 
 	// Type-check the package.
@@ -73,8 +87,13 @@ func (c *Context) ParseFile(filePath string) error {
 		Importer: importer.ForCompiler(fileSet, "source", nil),
 	}
 
+	packageFiles := make([]*ast.File, 0, len(astDir[astFile.Name.Name].Files))
+	for _, file := range astDir[astFile.Name.Name].Files {
+		packageFiles = append(packageFiles, file)
+	}
+
 	dir := filepath.Dir(filePath)
-	_, err = conf.Check(dir, fileSet, []*ast.File{astFile}, &info)
+	_, err = conf.Check(dir, fileSet, packageFiles, &info)
 	if err != nil {
 		return err
 	}
