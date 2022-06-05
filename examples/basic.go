@@ -55,6 +55,7 @@ func main() {
 	// someTimeFuncs()
 	// stringFuncs()
 	// stringPrefixSuffixFuncs()
+	// isNullAndInArray()
 }
 
 func basic() {
