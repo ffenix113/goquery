@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun/dialect/sqlitedialect"
 	"github.com/uptrace/bun/driver/sqliteshim"
 
-	entity "github.com/ffenix113/goquery"
+	"github.com/ffenix113/goquery"
 )
 
 type Book struct {
@@ -40,8 +40,8 @@ var globDB = func() *bun.DB {
 	return bun.NewDB(sqldb, sqlitedialect.New())
 }()
 
-func newQueryable[T any]() entity.Queryable[T] {
-	return entity.NewFactory[T](globDB).New()
+func newQueryable[T any]() goquery.Queryable[T] {
+	return goquery.NewFactory[T](globDB).New()
 }
 
 func main() {
@@ -93,7 +93,7 @@ func passingToAFunction() {
 	addWhere(q)
 }
 
-func addWhere(q entity.Queryable[*Book]) {
+func addWhere(q goquery.Queryable[*Book]) {
 	q.Where(func(b *Book) bool { return b.Title == "AnotherTitle" })
 }
 
@@ -183,7 +183,7 @@ func stringPrefixSuffixFuncs() {
 
 // Just some helpers
 
-func runSingleQuery[T any](q entity.Queryable[T]) (res T) {
+func runSingleQuery[T any](q goquery.Queryable[T]) (res T) {
 	if err := q.Query().Model(&res).
 		Scan(context.Background()); err != nil {
 		panic(err)
@@ -192,7 +192,7 @@ func runSingleQuery[T any](q entity.Queryable[T]) (res T) {
 	return res
 }
 
-func runAllQuery[T any](q entity.Queryable[T]) (res []T) {
+func runAllQuery[T any](q goquery.Queryable[T]) (res []T) {
 	if err := q.Query().Model(&res).
 		Scan(context.Background()); err != nil {
 		panic(err)
