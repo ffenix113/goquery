@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-var globalCallsMap = map[reflect.Type]any{}
+var globalCallsMap = map[reflect.Type]Calls{}
 
 type Factory[T any] interface {
 	// New creates new Queryable.
@@ -63,5 +63,5 @@ func getCallMapFromGlobal[T any]() Calls {
 		panic("global entity not found for type " + typeArg.String())
 	}
 
-	return callMap.(Calls)
+	return callMap
 }

@@ -2,21 +2,20 @@
 
 package {{.PackageName}}
 
-{{- range $EntityTypeName, $Callers := .Data }}
-var goquery{{$EntityTypeName}}CallerMap = goquery.Calls{
-    Where: map[goquery.Caller]goquery.QueryFunc{
-    {{- range $caller, $query := $Callers}}
-        goquery.Caller{File: "{{$caller.Filename}}", Line: {{$caller.Line}}}: func(helper goquery.Helper, query *bun.SelectQuery, args ...any) {
-            query.Where("{{$query.Query}}",
-                {{join $query.Args ", \n"}})
-        },
-    {{end -}}
-    },
-}
-{{ end -}}
 
 func init() {
-{{- range $EntityTypeName, $_ := .Data }}
-    goquery.AddToGlobalEntity[*{{$EntityTypeName}}](goquery{{$EntityTypeName}}CallerMap)
-{{end -}}
+{{- range $EntityTypeName, $Callers := .Data }}
+    goquery.AddToGlobalEntity[*{{$EntityTypeName}}](
+        goquery.Calls{
+        Where: map[goquery.Caller]goquery.QueryFunc{
+        {{- range $caller, $query := $Callers}}
+            goquery.Caller{File: "{{$caller.Filename}}", Line: {{$caller.Line}}}: func(helper goquery.Helper, query *bun.SelectQuery, args ...any) {
+            query.Where("{{$query.Query}}",
+            {{join $query.Args ", \n"}})
+            },
+        {{end -}}
+        },
+        },
+    )
+{{ end -}}
 }
