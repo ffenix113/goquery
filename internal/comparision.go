@@ -1,8 +1,10 @@
 package internal
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/printer"
 	"go/token"
 	"math/bits"
 	"strconv"
@@ -82,6 +84,14 @@ func newBinary(left Addable, op string, right Addable) Addable {
 	return cmp
 }
 
+func isCmpOp(cmpToken token.Token) bool {
+	defer func() {
+		recover()
+	}()
+
+	return tokenToOperation(cmpToken) != ""
+}
+
 func tokenToOperation(cmpToken token.Token) string {
 	switch cmpToken {
 	case token.EQL:
@@ -109,7 +119,12 @@ func (p *whereBodyParser) fromBinaryExpr(expr *ast.BinaryExpr, args map[string]i
 		return newComparisonAnd(p.exprToAddable(expr.X, args), p.exprToAddable(expr.Y, args))
 	}
 
-	return newComparison(p, expr)
+	if isCmpOp(expr.Op) {
+		return newComparison(p, expr)
+	}
+	// Allow other generators to continue if this is binary expression
+	// that this basic generator does not understand(e.g. math operations).
+	return nil
 }
 
 func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable {
@@ -165,5 +180,15 @@ func fromArgs(pos int) raw {
 
 func (c *Context) panicWithPosf(node ast.Node, msg string, args ...any) {
 	formattedMsg := fmt.Sprintf(msg, args...)
+	if _, ok := node.(ast.Expr); ok {
+		var b bytes.Buffer
+
+		if err := printer.Fprint(&b, c.FileSet, node); err != nil {
+			fmt.Println(err)
+		}
+
+		panic(fmt.Sprintf("%s (expr: `%s`): %s", c.FileSet.Position(node.Pos()).String(), b.String(), formattedMsg))
+	}
+
 	panic(fmt.Sprintf("%s: %s", c.FileSet.Position(node.Pos()).String(), formattedMsg))
 }
