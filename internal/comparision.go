@@ -122,7 +122,7 @@ func (p *whereBodyParser) fromBinaryExpr(expr *ast.BinaryExpr, args map[string]i
 	if isCmpOp(expr.Op) {
 		return newComparison(p, expr)
 	}
-	// Allow other generators to continue if this is binary expression
+	// Allow other generators to continue if this is a binary expression
 	// that this basic generator does not understand(e.g. math operations).
 	return nil
 }
