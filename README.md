@@ -1,4 +1,5 @@
 # GoQuery
+[![Go Reference](https://pkg.go.dev/badge/github.com/ffenix113/goquery.svg)](https://pkg.go.dev/github.com/ffenix113/goquery)
 
 .NET IQueryable-like query library for Go.
 
