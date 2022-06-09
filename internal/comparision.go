@@ -24,11 +24,9 @@ func (c comparisonsAnd) String() string {
 
 	for _, comparison := range c {
 		if buf.Len() > 0 {
-			buf.WriteString(" and ")
+			buf.WriteString(" AND ")
 		}
-		buf.WriteByte('(')
 		buf.WriteString(comparison.String())
-		buf.WriteByte(')')
 	}
 
 	return buf.String()
@@ -53,7 +51,7 @@ func newComparisonOr(left, right Addable) comparisonOr {
 }
 
 func (c comparisonOr) String() string {
-	return fmt.Sprintf("(%s) or (%s)", c.left.String(), c.right.String())
+	return fmt.Sprintf("%s OR %s", c.left.String(), c.right.String())
 }
 
 func (c comparisonOr) Args() []any {
@@ -86,7 +84,7 @@ func newBinary(left Addable, op string, right Addable) Addable {
 
 func isCmpOp(cmpToken token.Token) bool {
 	defer func() {
-		recover()
+		_ = recover()
 	}()
 
 	return tokenToOperation(cmpToken) != ""
