@@ -3,8 +3,6 @@ package internal
 import (
 	"fmt"
 	"go/ast"
-	"go/importer"
-	"go/parser"
 	"go/token"
 	"go/types"
 	"path/filepath"
@@ -62,54 +60,6 @@ func (c *Context) ParseFile(filePath string) error {
 	return nil
 }
 
-func (c *Context) baseParseTypeInfo(filePath string, fileSet *token.FileSet) (*ast.File, *types.Info) {
-	astDir, err := parser.ParseDir(fileSet, filepath.Dir(filePath), nil, 0)
-	if err != nil {
-		panic(err)
-	}
-
-	var astFile *ast.File
-	for _, pkg := range astDir {
-		for pkgFilePath, file := range pkg.Files {
-			if filePath == pkgFilePath {
-				astFile = file
-				break
-			}
-		}
-
-		if astFile != nil {
-			break
-		}
-	}
-
-	// Type-check the package.
-	// We create an empty map for each kind of input
-	// we're interested in, and Check populates them.
-	info := &types.Info{
-		Types:     make(map[ast.Expr]types.TypeAndValue),
-		Instances: make(map[*ast.Ident]types.Instance),
-		Defs:      make(map[*ast.Ident]types.Object),
-	}
-
-	conf := types.Config{
-		// Importer: importer.Default(), // FIXME: Try to use Default importer
-		Importer: importer.ForCompiler(fileSet, "source", nil),
-	}
-
-	packageFiles := make([]*ast.File, 0, len(astDir[astFile.Name.Name].Files))
-	for _, file := range astDir[astFile.Name.Name].Files {
-		packageFiles = append(packageFiles, file)
-	}
-
-	dir := filepath.Dir(filePath)
-	_, err = conf.Check(dir, fileSet, packageFiles, info)
-	if err != nil {
-		panic(err)
-	}
-
-	return astFile, info
-}
-
 func (c *Context) getTypeInfo(filePath string, fileSet *token.FileSet) (astFile *ast.File, typesInfo *types.Info) {
 	pkgs, err := packages.Load(&packages.Config{
 		Tests: true,
@@ -129,8 +79,6 @@ func (c *Context) getTypeInfo(filePath string, fileSet *token.FileSet) (astFile 
 	}
 
 	panic("file not found in parsed packages")
-
-	return nil, nil
 }
 
 func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
