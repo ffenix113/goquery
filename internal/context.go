@@ -9,6 +9,8 @@ import (
 	"go/types"
 	"path/filepath"
 	"strconv"
+
+	"golang.org/x/tools/go/packages"
 )
 
 const ProjectName = "goquery"
@@ -22,7 +24,7 @@ type Context struct {
 
 	Data map[string]map[token.Position]QueryData // EntityName(type Arg) -> caller -> query
 
-	TypeInfo types.Info
+	TypeInfo *types.Info
 }
 
 type QueryData struct {
@@ -52,11 +54,18 @@ func newQueryData(addable Addable) QueryData {
 }
 
 func (c *Context) ParseFile(filePath string) error {
-	fileSet := token.NewFileSet()
+	c.FileSet = token.NewFileSet()
+	c.AstFile, c.TypeInfo = c.getTypeInfo(filePath, c.FileSet)
 
+	// _ = ast.Print(FileSet, AstFile)
+
+	return nil
+}
+
+func (c *Context) baseParseTypeInfo(filePath string, fileSet *token.FileSet) (*ast.File, *types.Info) {
 	astDir, err := parser.ParseDir(fileSet, filepath.Dir(filePath), nil, 0)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	var astFile *ast.File
@@ -76,7 +85,7 @@ func (c *Context) ParseFile(filePath string) error {
 	// Type-check the package.
 	// We create an empty map for each kind of input
 	// we're interested in, and Check populates them.
-	info := types.Info{
+	info := &types.Info{
 		Types:     make(map[ast.Expr]types.TypeAndValue),
 		Instances: make(map[*ast.Ident]types.Instance),
 		Defs:      make(map[*ast.Ident]types.Object),
@@ -93,18 +102,35 @@ func (c *Context) ParseFile(filePath string) error {
 	}
 
 	dir := filepath.Dir(filePath)
-	_, err = conf.Check(dir, fileSet, packageFiles, &info)
+	_, err = conf.Check(dir, fileSet, packageFiles, info)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
-	// _ = ast.Print(FileSet, AstFile)
+	return astFile, info
+}
 
-	c.FileSet = fileSet
-	c.AstFile = astFile
-	c.TypeInfo = info
+func (c *Context) getTypeInfo(filePath string, fileSet *token.FileSet) (astFile *ast.File, typesInfo *types.Info) {
+	pkgs, err := packages.Load(&packages.Config{
+		Tests: true,
+		Fset:  fileSet,
+		Mode:  packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+	}, filepath.Dir(filePath))
+	if err != nil {
+		panic(err)
+	}
 
-	return nil
+	for _, pkg := range pkgs {
+		for i, fileName := range pkg.GoFiles {
+			if fileName == filePath {
+				return pkg.Syntax[i], pkg.TypesInfo
+			}
+		}
+	}
+
+	panic("file not found in parsed packages")
+
+	return nil, nil
 }
 
 func (c *Context) Visit(node ast.Node) (w ast.Visitor) {
