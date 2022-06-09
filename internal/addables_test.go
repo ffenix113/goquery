@@ -61,6 +61,25 @@ func TestSimpleAddables(t *testing.T) {
 			},
 			result: `("string_col" = 'arg' OR "string_col" = "string_col2" AND "int_col" >= 88)`,
 		},
+		{
+			name: "in",
+			f: func(q goquery.Queryable[*Extensive]) {
+				stringArgs := []string{"1", "2"}
+				q.Where(func(e *Extensive) bool {
+					return goquery.In(e.StringCol, stringArgs)
+				}, stringArgs)
+			},
+			result: `("string_col" IN ('1', '2'))`,
+		},
+		{
+			name: "is null",
+			f: func(q goquery.Queryable[*Extensive]) {
+				q.Where(func(e *Extensive) bool {
+					return goquery.IsNull(e.StringCol)
+				})
+			},
+			result: `("string_col" IS NULL)`,
+		},
 	}
 
 	for _, test := range tests {

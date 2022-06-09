@@ -166,7 +166,7 @@ type str struct {
 func someTimeFuncs() {
 	q := newQueryable[*str]()
 	q.Where(func(s *str) bool {
-		return s.Time.After(time.Now()) || time.Now().Equal(time.Now())
+		return s.Time.After(time.Now()) || time.Now().Equal(time.Now()) || time.Now().Add(time.Hour).Equal(time.Now())
 	})
 }
 

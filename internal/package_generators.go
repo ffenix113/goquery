@@ -62,7 +62,7 @@ func (GoQueryPackage) isNull(p *whereBodyParser, s *ast.CallExpr, args map[strin
 	return Wrapper{
 		Addable: p.exprToAddable(s.Args[0], args),
 		StringF: func(a Addable) string {
-			return a.String() + " is null"
+			return a.String() + " IS NULL"
 		},
 	}
 }
@@ -75,7 +75,7 @@ func (GoQueryPackage) in(p *whereBodyParser, s *ast.CallExpr, args map[string]in
 	return Wrapper{
 		Addable: p.exprToAddable(s.Args[0], args),
 		StringF: func(a Addable) string {
-			return a.String() + " in (?)"
+			return a.String() + " IN (?)"
 		},
 		ArgsF: func(a Addable) []any {
 			return append(a.Args(), raw("bun.In("+fromArgs(0)+")"))
