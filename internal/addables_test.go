@@ -80,6 +80,24 @@ func TestSimpleAddables(t *testing.T) {
 			},
 			result: `("string_col" IS NULL)`,
 		},
+		{
+			name: "string concat",
+			f: func(q goquery.Queryable[*Extensive]) {
+				q.Where(func(e *Extensive) bool {
+					return e.StringCol == "1"+"2"
+				})
+			},
+			result: `("string_col" = '1' || '2')`,
+		},
+		{
+			name: "duration mult",
+			f: func(q goquery.Queryable[*Extensive]) {
+				q.Where(func(e *Extensive) bool {
+					return e.TimeCol.Add(-3*time.Second) == time.Now()
+				})
+			},
+			result: `("time_col" + -3 * INTERVAL '1 second' = NOW())`,
+		},
 	}
 
 	for _, test := range tests {

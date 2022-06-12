@@ -82,14 +82,6 @@ func newBinary(left Addable, op string, right Addable) Addable {
 	return cmp
 }
 
-func isCmpOp(cmpToken token.Token) bool {
-	defer func() {
-		_ = recover()
-	}()
-
-	return tokenToOperation(cmpToken) != ""
-}
-
 func tokenToOperation(cmpToken token.Token) string {
 	switch cmpToken {
 	case token.EQL:
@@ -104,6 +96,14 @@ func tokenToOperation(cmpToken token.Token) string {
 		return "<="
 	case token.GEQ:
 		return ">="
+	case token.SUB:
+		return "-"
+	case token.ADD:
+		return "+"
+	case token.MUL:
+		return "*"
+	case token.QUO:
+		return "/"
 	default:
 		panic("unsupported operator: " + cmpToken.String())
 	}
@@ -117,12 +117,7 @@ func (p *whereBodyParser) fromBinaryExpr(expr *ast.BinaryExpr, args map[string]i
 		return newComparisonAnd(p.exprToAddable(expr.X, args), p.exprToAddable(expr.Y, args))
 	}
 
-	if isCmpOp(expr.Op) {
-		return newComparison(p, expr)
-	}
-	// Allow other generators to continue if this is a binary expression
-	// that this basic generator does not understand(e.g. math operations).
-	return nil
+	return newComparison(p, expr)
 }
 
 func (p *whereBodyParser) exprToAddable(s ast.Expr, args map[string]int) Addable {

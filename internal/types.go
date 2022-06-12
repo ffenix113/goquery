@@ -79,6 +79,14 @@ func (n Not) String() string {
 	return "not (" + n.Addable.String() + ")"
 }
 
+type Neg struct {
+	Addable
+}
+
+func (n Neg) String() string {
+	return "-" + n.Addable.String()
+}
+
 // Wrapper takes an addable and wraps it.
 //
 // For example if string representation of Addable

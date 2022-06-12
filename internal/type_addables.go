@@ -11,7 +11,7 @@ func (TimePackage) now(p *whereBodyParser, s *ast.CallExpr, args map[string]int)
 	return NewSimple("NOW()")
 }
 
-func (TimeType) cmp(op string) typedGenerator[*ast.CallExpr] {
+func (TimeType) binary(op string) typedGenerator[*ast.CallExpr] {
 	return func(p *whereBodyParser, s *ast.CallExpr, args map[string]int) Addable {
 		return newBinary(
 			p.exprToAddable(s.Fun.(*ast.SelectorExpr).X, args),

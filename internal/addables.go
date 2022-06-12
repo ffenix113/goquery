@@ -20,6 +20,13 @@ var typeMethods = map[string]map[string]typedGenerator[*ast.CallExpr]{}
 var packageFuncs = map[string]map[string]typedGenerator[*ast.CallExpr]{}
 
 func init() {
+	// Define these generators before everything else,
+	// so they will not be shadowed by others if they do not return nil.
+	addTypeMethodGenerators()
+	addPackageFuncGenerators()
+	addBinaryGenerators()
+	addPackageIdentGenerators()
+
 	// Basic generators, they are not specific
 	// to some type, package or variable/const.
 	addGenerator(func(p *whereBodyParser, s *ast.BasicLit, args map[string]int) Addable {
@@ -68,6 +75,12 @@ func init() {
 		switch s.Op {
 		case token.NOT:
 			return Not{p.getAddable(s.X, args)}
+		case token.SUB:
+			return Neg{p.getAddable(s.X, args)}
+		case token.ADD:
+			// Do not care about plus sign before
+			// value as it does not change the result.
+			return p.getAddable(s.X, args)
 		default:
 			p.c.panicWithPosf(s, "unknown unary operator %s", s.Op)
 			return nil
@@ -85,12 +98,19 @@ func init() {
 	addPackageFuncGenerator("strings", "HasPrefix", StringsPackage{}.hasPrefix)
 	addPackageFuncGenerator("strings", "HasSuffix", StringsPackage{}.hasSuffix)
 
-	addTypeFuncGenerator("time.Time", "After", TimeType{}.cmp(tokenToOperation(token.GTR)))
-	addTypeFuncGenerator("time.Time", "Before", TimeType{}.cmp(tokenToOperation(token.LSS)))
-	addTypeFuncGenerator("time.Time", "Equal", TimeType{}.cmp(tokenToOperation(token.EQL)))
+	addTypeFuncGenerator("time.Time", "After", TimeType{}.binary(tokenToOperation(token.GTR)))
+	addTypeFuncGenerator("time.Time", "Before", TimeType{}.binary(tokenToOperation(token.LSS)))
+	addTypeFuncGenerator("time.Time", "Equal", TimeType{}.binary(tokenToOperation(token.EQL)))
+	addTypeFuncGenerator("time.Time", "Add", TimeType{}.binary(tokenToOperation(token.ADD)))
 
-	addTypeMethodGenerators()
-	addPackageFuncGenerators()
+	addBinaryTypeGenerator("string", "string", stringBinaryTypeGenerator)
+
+	addPackageIdentGenerator("time", "Microsecond", timeIdentsGenerator)
+	addPackageIdentGenerator("time", "Millisecond", timeIdentsGenerator)
+	addPackageIdentGenerator("time", "Second", timeIdentsGenerator)
+	addPackageIdentGenerator("time", "Minute", timeIdentsGenerator)
+	addPackageIdentGenerator("time", "Hour", timeIdentsGenerator)
+
 }
 
 func wrapper[T ast.Expr](f func(p *whereBodyParser, s T, args map[string]int) Addable) addableGenerator {
@@ -201,7 +221,21 @@ func typeKey[T ast.Expr](e T) string {
 	return fmt.Sprintf("%T", e)
 }
 
+// exprType returns stringified type of the expression.
+//
+// It returns false if type cannot be got from the expression.
 func (p *whereBodyParser) exprType(t ast.Expr) (string, bool) {
+	switch t := t.(type) {
+	case *ast.ParenExpr:
+		return p.exprType(t.X)
+	case *ast.UnaryExpr:
+		return p.exprType(t.X)
+	}
+
+	if basicLit, ok := t.(*ast.BasicLit); ok {
+		return strings.ToLower(basicLit.Kind.String()), true
+	}
+
 	tp := p.c.TypeInfo.TypeOf(t)
 
 	namedTp, ok := tp.(*types.Named)
