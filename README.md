@@ -77,10 +77,17 @@ which contains necessary definitions for resulting SQL queries.
 ### What this project can currently do
 Please see `examples` package to see more uses and available functionality.
 
-* Basic comparisons to constants and most of binary expressions.
+* Basic comparisons to values and most of binary expressions.
 ```go
 queryable.Where(func(user User) bool {
     return (user.Name == "John" && user.ID == 1) || user.ID >= 4
+})
+```
+* Compare to constants.
+```go
+const name = "John"
+queryable.Where(func(user User) bool {
+    return user.Name == name
 })
 ```
 * Compare to true/false

@@ -27,6 +27,8 @@ func init() {
 	addBinaryGenerators()
 	addPackageIdentGenerators()
 
+	addConstGenerators()
+
 	// Basic generators, they are not specific
 	// to some type, package or variable/const.
 	addGenerator(func(p *whereBodyParser, s *ast.BasicLit, args map[string]int) Addable {
@@ -62,6 +64,17 @@ func init() {
 			}
 
 			return NewSimple(param, raw(s.Name))
+		}
+
+		if s.Obj != nil && s.Obj.Kind == ast.Con {
+			defObj := p.c.TypeInfo.ObjectOf(s.Obj.Decl.(*ast.ValueSpec).Values[0].(*ast.SelectorExpr).Sel)
+			_ = defObj
+
+			if valSpec, ok := s.Obj.Decl.(*ast.ValueSpec); ok {
+				if basicLit, ok := valSpec.Values[0].(*ast.BasicLit); ok {
+					return NewSimple(param, getArg(basicLit))
+				}
+			}
 		}
 
 		argPos, ok := args[s.Name]

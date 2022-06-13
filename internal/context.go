@@ -16,7 +16,7 @@ const InterfaceName = "Queryable"
 
 type Context struct {
 	FileSet *token.FileSet
-	AstFile ast.Node
+	AstFile *ast.File
 
 	PackageName string
 

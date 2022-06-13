@@ -1,10 +1,11 @@
 //go:generate go run ../cmd/goquery/main.go
 
-package internal
+package internal_test
 
 import (
 	"context"
 	"database/sql"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -24,6 +25,8 @@ type Extensive struct {
 	IntCol     int
 	TimeCol    time.Time
 }
+
+const packageConst = 1
 
 func TestSimpleAddables(t *testing.T) {
 	tests := []struct {
@@ -97,6 +100,43 @@ func TestSimpleAddables(t *testing.T) {
 				})
 			},
 			result: `("time_col" + -3 * INTERVAL '1 second' = NOW())`,
+		},
+		{
+			name: "with const simple",
+			f: func(q goquery.Queryable[*Extensive]) {
+				const val = 0
+				q.Where(func(e *Extensive) bool {
+					return e.IntCol == val
+				})
+			},
+			result: `("int_col" = 0)`,
+		},
+		{
+			name: "with const from package-level same file",
+			f: func(q goquery.Queryable[*Extensive]) {
+				q.Where(func(e *Extensive) bool {
+					return e.IntCol == packageConst
+				})
+			},
+			result: `("int_col" = 1)`,
+		},
+		{
+			name: "with const from package-level different file",
+			f: func(q goquery.Queryable[*Extensive]) {
+				q.Where(func(e *Extensive) bool {
+					return e.IntCol == anotherFileConst
+				})
+			},
+			result: `("int_col" = 3)`,
+		},
+		{
+			name: "with const from another package",
+			f: func(q goquery.Queryable[*Extensive]) {
+				q.Where(func(e *Extensive) bool {
+					return e.IntCol == math.MaxInt8
+				})
+			},
+			result: `("int_col" = 127)`,
 		},
 	}
 
